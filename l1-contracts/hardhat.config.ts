@@ -39,8 +39,7 @@ export default {
           "*": ["storageLayout"],
         },
       },
-      // Default to Shanghai for deploy safety; allow override via env
-      evmVersion: process.env.SOLC_EVM_VERSION || "shanghai",
+      evmVersion: "shanghai",
     },
     eraVersion: "1.0.1",
   },
