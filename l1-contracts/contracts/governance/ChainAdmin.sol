@@ -103,9 +103,7 @@ contract ChainAdmin is IChainAdmin, ReentrancyGuard {
         if (activeRestrictions.length() == 0) {
             for (uint256 i = 0; i < _calls.length; ++i) {
                 // Only allow calls that target this contract and invoke addRestriction(address).
-                if (
-                    _calls[i].target != address(this) || bytes4(_calls[i].data) != this.addRestriction.selector
-                ) {
+                if (_calls[i].target != address(this) || bytes4(_calls[i].data) != this.addRestriction.selector) {
                     revert NoActiveRestrictions();
                 }
             }
