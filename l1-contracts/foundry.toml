@@ -91,3 +91,11 @@ suppressed_warnings = ["txorigin"]
 [profile.invariant_tests_l2context_ci.invariant]
 runs = 2
 depth = 1000
+
+[etherscan]
+tanenbaum = { key = "", url = "https://explorer.tanenbaum.io/api", chain = 5700, type = "blockscout" }
+mainnet = { key = "", url = "https://explorer.syscoin.org/api", chain = 57, type = "blockscout" }
+ 
+[profile.deploy]
+evm_version = "shanghai"
+via_ir = true
