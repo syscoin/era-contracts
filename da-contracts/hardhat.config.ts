@@ -26,7 +26,7 @@ export default {
           "*": ["storageLayout"],
         },
       },
-      evmVersion: "shanghai",
+      evmVersion: "cancun",
     },
   },
   contractSizer: {

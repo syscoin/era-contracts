@@ -39,7 +39,7 @@ export default {
           "*": ["storageLayout"],
         },
       },
-      evmVersion: "shanghai",
+      evmVersion: "cancun",
     },
     eraVersion: "1.0.1",
   },
