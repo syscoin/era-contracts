@@ -833,11 +833,11 @@
   },
   {
     "contractName": "l1-contracts/ChainAdmin",
-    "zkBytecodeHash": "0x0100019b4076cebc6397174d0778e0b69a413500f132ad559fe14c31b66e8a76",
+    "zkBytecodeHash": "0x010001b5c162685b748de59a7bf1f3764412c297080b305f2c05170dbe71242b",
     "zkBytecodePath": "/l1-contracts/zkout/ChainAdmin.sol/ChainAdmin.json",
-    "evmBytecodeHash": "0x97edf926749a2210dbc7a59f3798894973f34ab94f13fb894807f301bc4879fa",
+    "evmBytecodeHash": "0x59f43a6628cbb74132e6d41ba8905875361163f247aee974217ecdb59cca2623",
     "evmBytecodePath": "/l1-contracts/out/ChainAdmin.sol/ChainAdmin.json",
-    "evmDeployedBytecodeHash": "0xf3a2c3efbf8d8be929140dacf6820b60b6c60f1bc036baa68089876ef22c546e"
+    "evmDeployedBytecodeHash": "0x350b9f054f180e920176f8584bb9088a3d2941d116d39959ac843136e9952b5c"
   },
   {
     "contractName": "l1-contracts/ChainAdminOwnable",
@@ -1129,11 +1129,11 @@
   },
   {
     "contractName": "l1-contracts/L2AdminFactory",
-    "zkBytecodeHash": "0x010000bb1d81997ee5e9502f12c7c5d2c2b02f9aaba22eb9acf9947b84df63d6",
+    "zkBytecodeHash": "0x010000bb0f1ddfba58ea5148fc38f19cb0204a433ea72a9e964c01a3bd29f78f",
     "zkBytecodePath": "/l1-contracts/zkout/L2AdminFactory.sol/L2AdminFactory.json",
-    "evmBytecodeHash": "0x74e40bda0667164a75e5fb043495b70410c2688157b689d41381fa86dac258ab",
+    "evmBytecodeHash": "0xa5b75d49864407e600701272009dc0e0c545eee23db75ff4bdd28b6f45a974aa",
     "evmBytecodePath": "/l1-contracts/out/L2AdminFactory.sol/L2AdminFactory.json",
-    "evmDeployedBytecodeHash": "0xf7fd6429dcfc03d7bb25d77d0aec6200532d2ddf62bea6e107b9b362e2bc2d51"
+    "evmDeployedBytecodeHash": "0x43de54df101ec9dfa7e50f62b80451e6eb6a14373b253174b98255521980f79b"
   },
   {
     "contractName": "l1-contracts/L2AssetRouter",
