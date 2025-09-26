@@ -5,27 +5,22 @@ pragma solidity ^0.8.24;
 
 import {Script, console2 as console} from "forge-std/Script.sol";
 import {stdToml} from "forge-std/StdToml.sol";
-import {TransparentUpgradeableProxy} from "@openzeppelin/contracts-v4/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {UpgradeableBeacon} from "@openzeppelin/contracts-v4/proxy/beacon/UpgradeableBeacon.sol";
-import {Action, FacetCut, StateTransitionDeployedAddresses, Utils} from "./Utils.sol";
+import {StateTransitionDeployedAddresses, Utils} from "./Utils.sol";
 import {Multicall3} from "contracts/dev-contracts/Multicall3.sol";
 
 import {IBridgehub} from "contracts/bridgehub/IBridgehub.sol";
 import {AddressAliasHelper} from "contracts/vendor/AddressAliasHelper.sol";
 import {IChainTypeManager} from "contracts/state-transition/IChainTypeManager.sol";
+import {L1Nullifier} from "contracts/bridge/L1Nullifier.sol";
+import {L1NullifierDev} from "contracts/dev-contracts/L1NullifierDev.sol";
 import {Diamond} from "contracts/state-transition/libraries/Diamond.sol";
 import {DiamondProxy} from "contracts/state-transition/chain-deps/DiamondProxy.sol";
 import {IRollupDAManager} from "./interfaces/IRollupDAManager.sol";
+import {ChainRegistrar} from "contracts/chain-registrar/ChainRegistrar.sol";
 import {L2LegacySharedBridgeTestHelper} from "./L2LegacySharedBridgeTestHelper.sol";
-import {ContractsBytecodesLib} from "./ContractsBytecodesLib.sol";
 import {IOwnable} from "contracts/common/interfaces/IOwnable.sol";
 
 import {ProxyAdmin} from "@openzeppelin/contracts-v4/proxy/transparent/ProxyAdmin.sol";
-import {DualVerifier} from "contracts/state-transition/verifiers/DualVerifier.sol";
-import {L1VerifierPlonk} from "contracts/state-transition/verifiers/L1VerifierPlonk.sol";
-import {L1VerifierFflonk} from "contracts/state-transition/verifiers/L1VerifierFflonk.sol";
-import {TestnetVerifier} from "contracts/state-transition/verifiers/TestnetVerifier.sol";
-import {IVerifier, VerifierParams} from "contracts/state-transition/chain-interfaces/IVerifier.sol";
 import {DefaultUpgrade} from "contracts/upgrades/DefaultUpgrade.sol";
 import {Governance} from "contracts/governance/Governance.sol";
 import {L1GenesisUpgrade} from "contracts/upgrades/L1GenesisUpgrade.sol";
@@ -34,6 +29,8 @@ import {ValidatorTimelock} from "contracts/state-transition/ValidatorTimelock.so
 import {Bridgehub} from "contracts/bridgehub/Bridgehub.sol";
 import {ChainAssetHandler} from "contracts/bridgehub/ChainAssetHandler.sol";
 import {MessageRoot} from "contracts/bridgehub/MessageRoot.sol";
+import {CTMDeploymentTracker} from "contracts/bridgehub/CTMDeploymentTracker.sol";
+import {L1NativeTokenVault} from "contracts/bridge/ntv/L1NativeTokenVault.sol";
 import {ExecutorFacet} from "contracts/state-transition/chain-deps/facets/Executor.sol";
 import {AdminFacet} from "contracts/state-transition/chain-deps/facets/Admin.sol";
 import {MailboxFacet} from "contracts/state-transition/chain-deps/facets/Mailbox.sol";
@@ -41,17 +38,19 @@ import {GettersFacet} from "contracts/state-transition/chain-deps/facets/Getters
 import {DiamondInit} from "contracts/state-transition/chain-deps/DiamondInit.sol";
 import {ChainTypeManager} from "contracts/state-transition/ChainTypeManager.sol";
 import {L1AssetRouter} from "contracts/bridge/asset-router/L1AssetRouter.sol";
+import {L1ERC20Bridge} from "contracts/bridge/L1ERC20Bridge.sol";
+import {BridgedStandardERC20} from "contracts/bridge/BridgedStandardERC20.sol";
 import {ValidiumL1DAValidator} from "contracts/state-transition/data-availability/ValidiumL1DAValidator.sol";
 import {RollupDAManager} from "contracts/state-transition/data-availability/RollupDAManager.sol";
 import {BytecodesSupplier} from "contracts/upgrades/BytecodesSupplier.sol";
 import {ChainAdminOwnable} from "contracts/governance/ChainAdminOwnable.sol";
 import {ServerNotifier} from "contracts/governance/ServerNotifier.sol";
-import {UpgradeStageValidator} from "contracts/upgrades/UpgradeStageValidator.sol";
 
-import {Config, DeployUtils, DeployedAddresses, GeneratedData} from "./DeployUtils.s.sol";
+import {Config, DeployedAddresses, GeneratedData} from "./DeployUtils.s.sol";
+import {DeployL1HelperScript} from "./DeployL1HelperScript.s.sol";
 import {FixedForceDeploymentsData} from "contracts/state-transition/l2-deps/IL2GenesisUpgrade.sol";
 
-contract DeployCTMScript is Script, DeployUtils {
+contract DeployCTMScript is Script, DeployL1HelperScript {
     using stdToml for string;
 
     function run() public virtual {
@@ -508,40 +507,6 @@ contract DeployCTMScript is Script, DeployUtils {
         return abi.encode(data);
     }
 
-    function deployTuppWithContract(
-        string memory contractName,
-        bool isZKBytecode
-    ) internal virtual override returns (address implementation, address proxy) {
-        (implementation, proxy) = deployTuppWithContractAndProxyAdmin(
-            contractName,
-            addresses.transparentProxyAdmin,
-            isZKBytecode
-        );
-    }
-
-    function deployTuppWithContractAndProxyAdmin(
-        string memory contractName,
-        address proxyAdmin,
-        bool isZKBytecode
-    ) internal returns (address implementation, address proxy) {
-        implementation = deployViaCreate2AndNotify(
-            getCreationCode(contractName, false),
-            getCreationCalldata(contractName, false),
-            contractName,
-            string.concat(contractName, " Implementation"),
-            isZKBytecode
-        );
-
-        proxy = deployViaCreate2AndNotify(
-            type(TransparentUpgradeableProxy).creationCode,
-            abi.encode(implementation, proxyAdmin, getInitializeCalldata(contractName, false)),
-            contractName,
-            string.concat(contractName, " Proxy"),
-            isZKBytecode
-        );
-        return (implementation, proxy);
-    }
-
     function deployServerNotifier() internal returns (address implementation, address proxy) {
         // We will not store the address of the ProxyAdmin as it is trivial to query if needed.
         address ecosystemProxyAdmin = deployWithCreate2AndOwner("ProxyAdmin", addresses.chainAdmin, false);
@@ -579,130 +544,43 @@ contract DeployCTMScript is Script, DeployUtils {
         vm.writeToml(toml, outputPath);
     }
 
-    /// @notice Get new facet cuts
-    function getFacetCuts(
+    /// @notice Get all four facet cuts
+    function getChainCreationFacetCuts(
         StateTransitionDeployedAddresses memory stateTransition
-    ) internal virtual override returns (FacetCut[] memory facetCuts) {
+    ) internal virtual override returns (Diamond.FacetCut[] memory facetCuts) {
         // Note: we use the provided stateTransition for the facet address, but not to get the selectors, as we use this feature for Gateway, which we cannot query.
         // If we start to use different selectors for Gateway, we should change this.
-        facetCuts = new FacetCut[](4);
-        facetCuts[0] = FacetCut({
+        facetCuts = new Diamond.FacetCut[](4);
+        facetCuts[0] = Diamond.FacetCut({
             facet: stateTransition.adminFacet,
-            action: Action.Add,
+            action: Diamond.Action.Add,
             isFreezable: false,
             selectors: Utils.getAllSelectors(addresses.stateTransition.adminFacet.code)
         });
-        facetCuts[1] = FacetCut({
+        facetCuts[1] = Diamond.FacetCut({
             facet: stateTransition.gettersFacet,
-            action: Action.Add,
+            action: Diamond.Action.Add,
             isFreezable: false,
             selectors: Utils.getAllSelectors(addresses.stateTransition.gettersFacet.code)
         });
-        facetCuts[2] = FacetCut({
+        facetCuts[2] = Diamond.FacetCut({
             facet: stateTransition.mailboxFacet,
-            action: Action.Add,
+            action: Diamond.Action.Add,
             isFreezable: true,
             selectors: Utils.getAllSelectors(addresses.stateTransition.mailboxFacet.code)
         });
-        facetCuts[3] = FacetCut({
+        facetCuts[3] = Diamond.FacetCut({
             facet: stateTransition.executorFacet,
-            action: Action.Add,
+            action: Diamond.Action.Add,
             isFreezable: true,
             selectors: Utils.getAllSelectors(addresses.stateTransition.executorFacet.code)
         });
     }
 
-    ////////////////////////////// GetContract data  /////////////////////////////////
-
-    function getCreationCode(
-        string memory contractName,
-        bool isZKBytecode
-    ) internal view virtual override returns (bytes memory) {
-        if (!isZKBytecode) {
-            if (compareStrings(contractName, "RollupDAManager")) {
-                return type(RollupDAManager).creationCode;
-            } else if (compareStrings(contractName, "ValidiumL1DAValidator")) {
-                return type(ValidiumL1DAValidator).creationCode;
-            } else if (compareStrings(contractName, "Verifier")) {
-                if (config.testnetVerifier) {
-                    return type(TestnetVerifier).creationCode;
-                } else {
-                    return type(DualVerifier).creationCode;
-                }
-            } else if (compareStrings(contractName, "VerifierFflonk")) {
-                return type(L1VerifierFflonk).creationCode;
-            } else if (compareStrings(contractName, "VerifierPlonk")) {
-                return type(L1VerifierPlonk).creationCode;
-            } else if (compareStrings(contractName, "DefaultUpgrade")) {
-                return type(DefaultUpgrade).creationCode;
-            } else if (compareStrings(contractName, "L1GenesisUpgrade")) {
-                return type(L1GenesisUpgrade).creationCode;
-            } else if (compareStrings(contractName, "ValidatorTimelock")) {
-                return type(ValidatorTimelock).creationCode;
-            } else if (compareStrings(contractName, "Governance")) {
-                return type(Governance).creationCode;
-            } else if (compareStrings(contractName, "ChainAdminOwnable")) {
-                return type(ChainAdminOwnable).creationCode;
-            } else if (compareStrings(contractName, "ChainAdmin")) {
-                return type(ChainAdmin).creationCode;
-            } else if (compareStrings(contractName, "ChainTypeManager")) {
-                return type(ChainTypeManager).creationCode;
-            } else if (compareStrings(contractName, "BytecodesSupplier")) {
-                return type(BytecodesSupplier).creationCode;
-            } else if (compareStrings(contractName, "ProxyAdmin")) {
-                return type(ProxyAdmin).creationCode;
-            } else if (compareStrings(contractName, "ExecutorFacet")) {
-                return type(ExecutorFacet).creationCode;
-            } else if (compareStrings(contractName, "AdminFacet")) {
-                return type(AdminFacet).creationCode;
-            } else if (compareStrings(contractName, "MailboxFacet")) {
-                return type(MailboxFacet).creationCode;
-            } else if (compareStrings(contractName, "GettersFacet")) {
-                return type(GettersFacet).creationCode;
-            } else if (compareStrings(contractName, "DiamondInit")) {
-                return type(DiamondInit).creationCode;
-            } else if (compareStrings(contractName, "ServerNotifier")) {
-                return type(ServerNotifier).creationCode;
-            } else if (compareStrings(contractName, "UpgradeStageValidator")) {
-                return type(UpgradeStageValidator).creationCode;
-            }
-        } else {
-            if (compareStrings(contractName, "Verifier")) {
-                if (config.testnetVerifier) {
-                    return getCreationCode("TestnetVerifier", true);
-                } else {
-                    return getCreationCode("DualVerifier", true);
-                }
-            }
-        }
-        return ContractsBytecodesLib.getCreationCode(contractName, isZKBytecode);
-    }
-
-    function getInitializeCalldata(
-        string memory contractName,
-        bool isZKBytecode
-    ) internal virtual override returns (bytes memory) {
-        if (!isZKBytecode) {
-            if (compareStrings(contractName, "ChainTypeManager")) {
-                return
-                    abi.encodeCall(
-                        ChainTypeManager.initialize,
-                        getChainTypeManagerInitializeData(addresses.stateTransition)
-                    );
-            } else if (compareStrings(contractName, "ServerNotifier")) {
-                return abi.encodeCall(ServerNotifier.initialize, (msg.sender));
-            } else if (compareStrings(contractName, "ValidatorTimelock")) {
-                return
-                    abi.encodeCall(
-                        ValidatorTimelock.initialize,
-                        (config.deployerAddress, uint32(config.contracts.validatorTimelockExecutionDelay))
-                    );
-            } else {
-                revert(string.concat("Contract ", contractName, " initialize calldata not set"));
-            }
-        } else {
-            revert(string.concat("Contract ", contractName, " ZK initialize calldata not set"));
-        }
+    function getUpgradeAddedFacetCuts(
+        StateTransitionDeployedAddresses memory stateTransition
+    ) internal virtual override returns (Diamond.FacetCut[] memory facetCuts) {
+        return getChainCreationFacetCuts(stateTransition);
     }
 
     // add this to be excluded from coverage report
