@@ -69,8 +69,15 @@ abstract contract CalldataDA {
         uint256 ptr = BLOB_DATA_OFFSET + 32 * blobsProvided;
 
         // Now, we need to double check that the provided input was indeed returned by the L2 DA validator.
-        if (keccak256(_operatorDAInput[:ptr]) != _l2DAValidatorOutputHash) {
-            revert InvalidL2DAOutputHash(_l2DAValidatorOutputHash);
+        // SYSCOIN Accept either the full-header hash (preferred) or the short 64-byte variant used by some L2 DA validators.
+        {
+            bytes32 hFull = keccak256(_operatorDAInput[:ptr]);
+            if (hFull != _l2DAValidatorOutputHash) {
+                // Fallback: compare against the short (64-byte) prefix (stateDiffHash || fullPubdataHash).
+                if (keccak256(_operatorDAInput[:64]) != _l2DAValidatorOutputHash) {
+                    revert InvalidL2DAOutputHash(_l2DAValidatorOutputHash);
+                }
+            }
         }
 
         // The rest of the output was provided specifically by the operator
