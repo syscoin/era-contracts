@@ -112,6 +112,36 @@ contract CalldataDATest is Test {
         assertEq(blobsLinearHashes[0], blobLinearHash, "blobsLinearHashes");
         assertEq(outputL1DaInput, l1DaInput, "l1DaInput");
     }
+    // SYSCOIN
+    function test_ProcessL2RollupDAValidatorOutputHashWithShortHash() public {
+        bytes32 stateDiffHash = Utils.randomBytes32("stateDiffHash");
+        bytes32 fullPubdataHash = Utils.randomBytes32("fullPubdataHash");
+        uint8 blobsProvided = 1;
+        bytes32 blobLinearHash = Utils.randomBytes32("blobLinearHash");
+
+        bytes memory shortData = abi.encodePacked(stateDiffHash, fullPubdataHash);
+        bytes memory l1DaInput = "verifydonttrust";
+
+        // Use the short (64-byte) hash as the l2DAValidatorOutputHash
+        bytes32 l2DAValidatorOutputHash = keccak256(shortData);
+
+        // Full operator input includes all data
+        bytes memory operatorDAInput = abi.encodePacked(stateDiffHash, fullPubdataHash, blobsProvided, blobLinearHash, l1DaInput);
+
+        (
+            bytes32 outputStateDiffHash,
+            bytes32 outputFullPubdataHash,
+            bytes32[] memory blobsLinearHashes,
+            uint256 outputBlobsProvided,
+            bytes memory outputL1DaInput
+        ) = calldataDA.processL2RollupDAValidatorOutputHash(l2DAValidatorOutputHash, blobsProvided, operatorDAInput);
+
+        assertEq(outputStateDiffHash, stateDiffHash, "stateDiffHash");
+        assertEq(outputFullPubdataHash, fullPubdataHash, "fullPubdataHash");
+        assertEq(blobsLinearHashes.length, 1, "blobsLinearHashesLength");
+        assertEq(blobsLinearHashes[0], blobLinearHash, "blobsLinearHashes");
+        assertEq(outputL1DaInput, l1DaInput, "l1DaInput");
+    }
 
     /*//////////////////////////////////////////////////////////////////////////
                             CalldataDA::_processCalldataDA
