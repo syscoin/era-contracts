@@ -126,7 +126,13 @@ contract CalldataDATest is Test {
         bytes32 l2DAValidatorOutputHash = keccak256(shortData);
 
         // Full operator input includes all data
-        bytes memory operatorDAInput = abi.encodePacked(stateDiffHash, fullPubdataHash, blobsProvided, blobLinearHash, l1DaInput);
+        bytes memory operatorDAInput = abi.encodePacked(
+            stateDiffHash,
+            fullPubdataHash,
+            blobsProvided,
+            blobLinearHash,
+            l1DaInput
+        );
 
         (
             bytes32 outputStateDiffHash,
