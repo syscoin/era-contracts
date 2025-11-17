@@ -19,8 +19,8 @@ library BridgeHelper {
         bytes memory decimals;
         if (_token == ETH_TOKEN_ADDRESS) {
             // when depositing eth to a non-eth based chain it is an ERC20
-            name = abi.encode("Ether");
-            symbol = abi.encode("ETH");
+            name = abi.encode("Syscoin");
+            symbol = abi.encode("SYS");
             decimals = abi.encode(uint8(18));
         } else {
             bool success;
