@@ -200,8 +200,6 @@ contract RollupL1DAValidator is IL1DAValidator, CalldataDA {
     }
 
     function _getBlobVersionedHash(uint256 _index) internal view virtual returns (bytes32 versionedHash) {
-        assembly {
-            versionedHash := blobhash(_index)
-        }
+        versionedHash = 0;
     }
 }
