@@ -51,3 +51,7 @@ error BlobNotPublished();
 
 // 0x8b003a9d
 error InvalidBlobsPublished(bytes32 publishedHash, bytes32 expectedHash);
+
+// Syscoin Bitcoin DA precompile (used by `BlobsL1DAValidatorZKsyncOS` / rollup fork paths).
+error BitcoinDAPrecompileCallFailed();
+error BitcoinDAVerificationFailed();

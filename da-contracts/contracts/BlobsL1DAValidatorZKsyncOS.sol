@@ -5,46 +5,22 @@ pragma solidity 0.8.28;
 import {IL1DAValidator, L1DAValidatorOutput} from "./IL1DAValidator.sol";
 
 import {
-    NonEmptyBlobVersionHash,
-    InvalidBlobsDAInputLength,
-    BlobNotPublished,
+    BitcoinDAPrecompileCallFailed,
+    BitcoinDAVerificationFailed,
     InvalidBlobsPublished,
-    EmptyBlobVersionHash
+    InvalidBlobsDAInputLength
 } from "./DAContractsErrors.sol";
 
-/// @dev The number of blocks within each we allow blob to be used for DA.
-/// On Ethereum blobs expire within 4096 epochs, i.e. 4096 * 32 blocks. We reserve
-/// half of the time in order to ensure reader's ability to read the blob's content.
-uint256 constant BLOB_EXPIRATION_BLOCKS = (4096 * 32) / 2;
-
-/// @dev The size in bytes of the versioned hash for a single blob.
-uint256 constant BLOB_VERSIONED_HASH_SIZE = 32;
-
+/// @title L1 DA validator for ZKsync OS “blobs” commitment on non–EIP-4844 L1 (e.g. Syscoin NEVM).
+/// @dev No `blobhash` opcode and no `publishBlobs` / prepublish flow. The operator passes the full list of
+/// 32-byte DA commitment hashes in `operatorDAInput`; each is checked with the Syscoin Bitcoin DA precompile,
+/// then `keccak256(operatorDAInput)` must match the L2 DA commitment (same encoding as ZKsync OS blob mode).
 contract BlobsL1DAValidatorZKsyncOS is IL1DAValidator {
-    /// @notice The published blob versioned hashes.
-    mapping(bytes32 versionedHash => uint256 blockOfPublishing) public publishedBlobs;
+    /// @dev Same Bitcoin DA precompile as `RollupL1DAValidator` on this fork.
+    address internal constant BITCOINDA_PRECOMPILE_ADDR = address(0x63);
+    uint16 internal constant BITCOINDA_PRECOMPILE_COST = 1400;
 
-    /// @notice Publishes all the blobs provided with a transaction.
-    function publishBlobs() external {
-        uint256 versionedHashIndex = 0;
-        // iterate through all the published blobs in the tx (until versionedHash for index equals to 0)
-        while (true) {
-            bytes32 versionedHash = _getBlobVersionedHash(versionedHashIndex);
-            if (versionedHash == bytes32(0)) {
-                break;
-            }
-            publishedBlobs[versionedHash] = block.number;
-            ++versionedHashIndex;
-        }
-    }
-
-    function isBlobAvailable(bytes32 _versionedHash) public view returns (bool) {
-        uint256 blockOfPublishing = publishedBlobs[_versionedHash];
-
-        // While `block.number` on all used L1 networks is much higher than `BLOB_EXPIRATION_BLOCKS`,
-        // we still check that `blockOfPublishing > 0` just in case.
-        return blockOfPublishing > 0 && block.number - blockOfPublishing <= BLOB_EXPIRATION_BLOCKS;
-    }
+    uint256 private constant WORD = 32;
 
     /// @inheritdoc IL1DAValidator
     function checkDA(
@@ -54,61 +30,36 @@ contract BlobsL1DAValidatorZKsyncOS is IL1DAValidator {
         bytes calldata _operatorDAInput,
         uint256 // _maxBlobsSupported
     ) external view returns (L1DAValidatorOutput memory output) {
-        // As DA input operator should provide concatenated blob versioned hashes of published blobs.
-        // If provided hash equals to 0, blob versioned hash will be taken from blob published with the current transaction.
-        if (_operatorDAInput.length % BLOB_VERSIONED_HASH_SIZE != 0) {
-            revert InvalidBlobsDAInputLength(_operatorDAInput.length);
+        uint256 len = _operatorDAInput.length;
+        if (len == 0 || len % WORD != 0) {
+            revert InvalidBlobsDAInputLength(len);
         }
 
-        uint256 blobsProvided = _operatorDAInput.length / BLOB_VERSIONED_HASH_SIZE;
-
-        bytes memory publishedVersionedHashes = new bytes(_operatorDAInput.length);
-        uint256 versionedHashIndex = 0;
-
-        for (uint256 index = 0; index < blobsProvided; ++index) {
-            bytes32 versionedHash = bytes32(
-                _operatorDAInput[BLOB_VERSIONED_HASH_SIZE * index:BLOB_VERSIONED_HASH_SIZE * (index + 1)]
-            );
-            if (versionedHash != bytes32(0)) {
-                if (!isBlobAvailable(versionedHash)) {
-                    revert BlobNotPublished();
-                }
-            } else {
-                versionedHash = _getBlobVersionedHash(versionedHashIndex);
-                require(versionedHash != bytes32(0), EmptyBlobVersionHash(versionedHashIndex));
-                ++versionedHashIndex;
-            }
-            // efficiently write versionedHash into the byte array
-            assembly {
-                // offset relative to the `publishedVersionedHashes` start
-                // we add 1 to `index` to skip length slot
-                let relativeOffset := mul(add(index, 1), 32)
-                mstore(add(publishedVersionedHashes, relativeOffset), versionedHash)
-            }
+        for (uint256 i = 0; i < len; i += WORD) {
+            _verifyBitcoinDA(bytes32(_operatorDAInput[i:i + WORD]));
         }
 
-        // This check is required because we want to ensure that there aren't any extra blobs trying to be published.
-        // Calling the BLOBHASH opcode with an index > # blobs - 1 yields bytes32(0)
-        bytes32 nextVersionedHash = _getBlobVersionedHash(versionedHashIndex);
-        if (nextVersionedHash != bytes32(0)) {
-            revert NonEmptyBlobVersionHash(versionedHashIndex);
+        bytes32 publishedHash = keccak256(_operatorDAInput);
+        if (publishedHash != _l2DAValidatorOutputHash) {
+            revert InvalidBlobsPublished(publishedHash, _l2DAValidatorOutputHash);
         }
 
-        // verify that published versionedHashes corresponds to what was generated by ZKsync OS for a batch
-        bytes32 publishedVersionedHashesHash = keccak256(publishedVersionedHashes);
-        if (publishedVersionedHashesHash != _l2DAValidatorOutputHash) {
-            revert InvalidBlobsPublished(publishedVersionedHashesHash, _l2DAValidatorOutputHash);
-        }
-
-        // we use this interface for compatibility, but in fact outputs not needed for ZKsync OS
         output.stateDiffHash = bytes32(0);
         output.blobsLinearHashes = new bytes32[](0);
         output.blobsOpeningCommitments = new bytes32[](0);
     }
 
-    function _getBlobVersionedHash(uint256 _index) internal view virtual returns (bytes32 versionedHash) {
-        assembly {
-            versionedHash := blobhash(_index)
+    /// @dev Same pattern as `RollupL1DAValidator._verifyBitcoinDA`.
+    function _verifyBitcoinDA(bytes32 _dataHash) internal view {
+        (bool success, bytes memory result) = BITCOINDA_PRECOMPILE_ADDR.staticcall{gas: BITCOINDA_PRECOMPILE_COST}(
+            abi.encode(_dataHash)
+        );
+
+        if (!success) {
+            revert BitcoinDAPrecompileCallFailed();
+        }
+        if (result.length == 0) {
+            revert BitcoinDAVerificationFailed();
         }
     }
 }

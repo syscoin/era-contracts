@@ -54,3 +54,6 @@ error BlobNotPublished();
 
 // 0x8b003a9d
 error InvalidBlobsPublished(bytes32 publishedHash, bytes32 expectedHash);
+
+error BitcoinDAPrecompileCallFailed();
+error BitcoinDAVerificationFailed();
