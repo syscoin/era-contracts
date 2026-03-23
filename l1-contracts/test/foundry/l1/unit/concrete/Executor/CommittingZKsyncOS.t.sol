@@ -10,8 +10,27 @@ import {IExecutor} from "contracts/state-transition/chain-interfaces/IExecutor.s
 import {L2DACommitmentScheme} from "contracts/common/Config.sol";
 import {MismatchL2DACommitmentScheme} from "contracts/state-transition/L1StateTransitionErrors.sol";
 import {ValidiumL1DAValidator} from "contracts/state-transition/data-availability/ValidiumL1DAValidator.sol";
-import {InvalidPubdataHash, InvalidBlobsPublished, BlobNotPublished} from "../../../da-contracts-imports/DAContractsErrors.sol";
-import {BlobsL1DAValidatorZKsyncOS} from "../../../da-contracts-imports/BlobsL1DAValidatorZKsyncOS.sol";
+import {
+    BitcoinDAPrecompileCallFailed,
+    InvalidPubdataHash,
+    InvalidBlobsPublished
+} from "../../../da-contracts-imports/DAContractsErrors.sol";
+
+/// @dev Etched at Syscoin Bitcoin DA precompile address for Foundry tests.
+contract BitcoinDAMockOk {
+    fallback() external {
+        assembly {
+            mstore(0, 1)
+            return(0, 32)
+        }
+    }
+}
+
+contract BitcoinDAMockFail {
+    fallback() external {
+        revert();
+    }
+}
 
 contract CommittingTest is ExecutorTest {
     function isZKsyncOS() internal pure override returns (bool) {
@@ -65,49 +84,12 @@ contract CommittingTest is ExecutorTest {
     }
 
     function test_SuccessfullyCommitBatchWithBlobs() public {
+        vm.etch(address(uint160(0x63)), address(new BitcoinDAMockOk()).code);
+
         bytes32[] memory blobVersionedHashes = new bytes32[](2);
         blobVersionedHashes[0] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5;
         blobVersionedHashes[1] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6;
 
-        // 2 blobs, which we didn't prepublish
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0), bytes32(0));
-
-        bytes32 daCommitment = keccak256(
-            abi.encodePacked(
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5),
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6)
-            )
-        );
-
-        IExecutor.CommitBatchInfoZKsyncOS memory correctNewCommitBatchInfo = newCommitBatchInfoZKsyncOS;
-        correctNewCommitBatchInfo.operatorDAInput = operatorDAInput;
-        correctNewCommitBatchInfo.daCommitment = daCommitment;
-        correctNewCommitBatchInfo.daCommitmentScheme = L2DACommitmentScheme.BLOBS_ZKSYNC_OS;
-
-        IExecutor.CommitBatchInfoZKsyncOS[]
-            memory correctCommitBatchInfoArray = new IExecutor.CommitBatchInfoZKsyncOS[](1);
-        correctCommitBatchInfoArray[0] = correctNewCommitBatchInfo;
-        correctCommitBatchInfoArray[0].operatorDAInput = operatorDAInput;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, correctCommitBatchInfoArray);
-
-        // with ZKsync OS we have separate pair for blobs
-        address blobsl1DaValidatorZKsyncOS = Utils.deployBlobsL1DAValidatorZKsyncOSBytecode();
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(blobsl1DaValidatorZKsyncOS, L2DACommitmentScheme.BLOBS_ZKSYNC_OS);
-
-        vm.prank(validator);
-        vm.blobhashes(blobVersionedHashes);
-        executor.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
-    }
-
-    function test_SuccessfullyCommitBatchWithBlobsPrepublished() public {
-        bytes32[] memory blobVersionedHashes = new bytes32[](2);
-        blobVersionedHashes[0] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5;
-        blobVersionedHashes[1] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6;
-
-        // 2 prepublished blobs
         bytes memory operatorDAInput = abi.encodePacked(blobVersionedHashes[0], blobVersionedHashes[1]);
 
         bytes32 daCommitment = keccak256(
@@ -135,11 +117,45 @@ contract CommittingTest is ExecutorTest {
         vm.prank(address(owner));
         admin.setDAValidatorPair(blobsl1DaValidatorZKsyncOS, L2DACommitmentScheme.BLOBS_ZKSYNC_OS);
 
-        vm.blobhashes(blobVersionedHashes);
-        BlobsL1DAValidatorZKsyncOS(blobsl1DaValidatorZKsyncOS).publishBlobs();
+        vm.prank(validator);
+        executor.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+    }
+
+    function test_SuccessfullyCommitBatchWithBlobsPrepublished() public {
+        vm.etch(address(uint160(0x63)), address(new BitcoinDAMockOk()).code);
+
+        bytes32[] memory blobVersionedHashes = new bytes32[](2);
+        blobVersionedHashes[0] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5;
+        blobVersionedHashes[1] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6;
+
+        bytes memory operatorDAInput = abi.encodePacked(blobVersionedHashes[0], blobVersionedHashes[1]);
+
+        bytes32 daCommitment = keccak256(
+            abi.encodePacked(
+                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5),
+                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6)
+            )
+        );
+
+        IExecutor.CommitBatchInfoZKsyncOS memory correctNewCommitBatchInfo = newCommitBatchInfoZKsyncOS;
+        correctNewCommitBatchInfo.operatorDAInput = operatorDAInput;
+        correctNewCommitBatchInfo.daCommitment = daCommitment;
+        correctNewCommitBatchInfo.daCommitmentScheme = L2DACommitmentScheme.BLOBS_ZKSYNC_OS;
+
+        IExecutor.CommitBatchInfoZKsyncOS[]
+            memory correctCommitBatchInfoArray = new IExecutor.CommitBatchInfoZKsyncOS[](1);
+        correctCommitBatchInfoArray[0] = correctNewCommitBatchInfo;
+        correctCommitBatchInfoArray[0].operatorDAInput = operatorDAInput;
+
+        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
+            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, correctCommitBatchInfoArray);
+
+        // with ZKsync OS we have separate pair for blobs
+        address blobsl1DaValidatorZKsyncOS = Utils.deployBlobsL1DAValidatorZKsyncOSBytecode();
+        vm.prank(address(owner));
+        admin.setDAValidatorPair(blobsl1DaValidatorZKsyncOS, L2DACommitmentScheme.BLOBS_ZKSYNC_OS);
 
         vm.prank(validator);
-        vm.blobhashes(new bytes32[](0));
         executor.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
     }
 
@@ -173,12 +189,13 @@ contract CommittingTest is ExecutorTest {
     }
 
     function test_RevertWhen_CommittingWithWrongL2DACommitmentScheme() public {
+        vm.etch(address(uint160(0x63)), address(new BitcoinDAMockOk()).code);
+
         bytes32[] memory blobVersionedHashes = new bytes32[](2);
         blobVersionedHashes[0] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5;
         blobVersionedHashes[1] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6;
 
-        // 2 blobs, which we didn't prepublish
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0), bytes32(0));
+        bytes memory operatorDAInput = abi.encodePacked(blobVersionedHashes[0], blobVersionedHashes[1]);
 
         bytes32 daCommitment = keccak256(
             abi.encodePacked(
@@ -206,7 +223,6 @@ contract CommittingTest is ExecutorTest {
         admin.setDAValidatorPair(blobsl1DaValidatorZKsyncOS, L2DACommitmentScheme.BLOBS_ZKSYNC_OS);
 
         vm.prank(validator);
-        vm.blobhashes(blobVersionedHashes);
         vm.expectRevert(abi.encodeWithSelector(MismatchL2DACommitmentScheme.selector, 3, 4));
         executor.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
     }
@@ -257,56 +273,12 @@ contract CommittingTest is ExecutorTest {
     }
 
     function test_RevertWhen_CommittingWithWrongBlobs() public {
+        vm.etch(address(uint160(0x63)), address(new BitcoinDAMockOk()).code);
+
         bytes32[] memory blobVersionedHashes = new bytes32[](2);
         blobVersionedHashes[0] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5;
         blobVersionedHashes[1] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d7;
 
-        // 2 blobs, which we didn't prepublish
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0), bytes32(0));
-
-        bytes32 daCommitment = keccak256(
-            abi.encodePacked(
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5),
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6)
-            )
-        );
-
-        IExecutor.CommitBatchInfoZKsyncOS memory correctNewCommitBatchInfo = newCommitBatchInfoZKsyncOS;
-        correctNewCommitBatchInfo.operatorDAInput = operatorDAInput;
-        correctNewCommitBatchInfo.daCommitment = daCommitment;
-        correctNewCommitBatchInfo.daCommitmentScheme = L2DACommitmentScheme.BLOBS_ZKSYNC_OS;
-
-        IExecutor.CommitBatchInfoZKsyncOS[]
-            memory correctCommitBatchInfoArray = new IExecutor.CommitBatchInfoZKsyncOS[](1);
-        correctCommitBatchInfoArray[0] = correctNewCommitBatchInfo;
-        correctCommitBatchInfoArray[0].operatorDAInput = operatorDAInput;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, correctCommitBatchInfoArray);
-
-        // with ZKsync OS we have separate pair for blobs
-        address blobsl1DaValidatorZKsyncOS = Utils.deployBlobsL1DAValidatorZKsyncOSBytecode();
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(blobsl1DaValidatorZKsyncOS, L2DACommitmentScheme.BLOBS_ZKSYNC_OS);
-
-        vm.prank(validator);
-        vm.blobhashes(blobVersionedHashes);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                InvalidBlobsPublished.selector,
-                keccak256(abi.encodePacked(blobVersionedHashes)),
-                daCommitment
-            )
-        );
-        executor.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
-    }
-
-    function test_RevertWhen_CommittingWithNotPrepublishedBlobs() public {
-        bytes32[] memory blobVersionedHashes = new bytes32[](2);
-        blobVersionedHashes[0] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5;
-        blobVersionedHashes[1] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6;
-
-        // 2 prepublished blobs
         bytes memory operatorDAInput = abi.encodePacked(blobVersionedHashes[0], blobVersionedHashes[1]);
 
         bytes32 daCommitment = keccak256(
@@ -335,7 +307,51 @@ contract CommittingTest is ExecutorTest {
         admin.setDAValidatorPair(blobsl1DaValidatorZKsyncOS, L2DACommitmentScheme.BLOBS_ZKSYNC_OS);
 
         vm.prank(validator);
-        vm.expectRevert(BlobNotPublished.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InvalidBlobsPublished.selector,
+                keccak256(abi.encodePacked(blobVersionedHashes)),
+                daCommitment
+            )
+        );
+        executor.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+    }
+
+    function test_RevertWhen_CommittingWithBlobsBitcoinDAFails() public {
+        vm.etch(address(uint160(0x63)), address(new BitcoinDAMockFail()).code);
+
+        bytes32[] memory blobVersionedHashes = new bytes32[](2);
+        blobVersionedHashes[0] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5;
+        blobVersionedHashes[1] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6;
+
+        bytes memory operatorDAInput = abi.encodePacked(blobVersionedHashes[0], blobVersionedHashes[1]);
+
+        bytes32 daCommitment = keccak256(
+            abi.encodePacked(
+                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5),
+                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6)
+            )
+        );
+
+        IExecutor.CommitBatchInfoZKsyncOS memory correctNewCommitBatchInfo = newCommitBatchInfoZKsyncOS;
+        correctNewCommitBatchInfo.operatorDAInput = operatorDAInput;
+        correctNewCommitBatchInfo.daCommitment = daCommitment;
+        correctNewCommitBatchInfo.daCommitmentScheme = L2DACommitmentScheme.BLOBS_ZKSYNC_OS;
+
+        IExecutor.CommitBatchInfoZKsyncOS[]
+            memory correctCommitBatchInfoArray = new IExecutor.CommitBatchInfoZKsyncOS[](1);
+        correctCommitBatchInfoArray[0] = correctNewCommitBatchInfo;
+        correctCommitBatchInfoArray[0].operatorDAInput = operatorDAInput;
+
+        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
+            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, correctCommitBatchInfoArray);
+
+        address blobsl1DaValidatorZKsyncOS = Utils.deployBlobsL1DAValidatorZKsyncOSBytecode();
+        vm.prank(address(owner));
+        admin.setDAValidatorPair(blobsl1DaValidatorZKsyncOS, L2DACommitmentScheme.BLOBS_ZKSYNC_OS);
+
+        vm.prank(validator);
+        vm.expectRevert(BitcoinDAPrecompileCallFailed.selector);
         executor.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
     }
 }

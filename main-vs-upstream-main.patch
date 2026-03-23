@@ -1,0 +1,1222 @@
+diff --git a/AllContractsHashes.json b/AllContractsHashes.json
+index f22c94969..f4ee6b8ab 100644
+--- a/AllContractsHashes.json
++++ b/AllContractsHashes.json
+@@ -529,20 +529,12 @@
+   },
+   {
+     "contractName": "l2-contracts/RollupL2DAValidator",
+-    "zkBytecodeHash": "0x0100014b21bb1475aa3215366f4883a85cfb90184e29d0b264bb9dfb14de9632",
++    "zkBytecodeHash": "0x010001137885e34b66d0f6207f8bace4de91b926c275f73753e8107cfb58e398",
+     "zkBytecodePath": "/l2-contracts/zkout/RollupL2DAValidator.sol/RollupL2DAValidator.json",
+     "evmBytecodeHash": null,
+     "evmBytecodePath": null,
+     "evmDeployedBytecodeHash": null
+   },
+-  {
+-    "contractName": "l2-contracts/SafeCast",
+-    "zkBytecodeHash": "0x01000007f57bdc0022bce75eeefd40e3b485358ec294cbf21b4e5e7aa54a432b",
+-    "zkBytecodePath": "/l2-contracts/zkout/SafeCast.sol/SafeCast.json",
+-    "evmBytecodeHash": null,
+-    "evmBytecodePath": null,
+-    "evmDeployedBytecodeHash": null
+-  },
+   {
+     "contractName": "l2-contracts/SafeERC20",
+     "zkBytecodeHash": "0x01000007c94c9308ac4b365db72d73033cf6e7af1f5d58e60f2604bcaa7f95ef",
+@@ -841,11 +833,11 @@
+   },
+   {
+     "contractName": "l1-contracts/ChainAdmin",
+-    "zkBytecodeHash": "0x0100019b4076cebc6397174d0778e0b69a413500f132ad559fe14c31b66e8a76",
++    "zkBytecodeHash": "0x010001b5c162685b748de59a7bf1f3764412c297080b305f2c05170dbe71242b",
+     "zkBytecodePath": "/l1-contracts/zkout/ChainAdmin.sol/ChainAdmin.json",
+-    "evmBytecodeHash": "0x97edf926749a2210dbc7a59f3798894973f34ab94f13fb894807f301bc4879fa",
++    "evmBytecodeHash": "0x59f43a6628cbb74132e6d41ba8905875361163f247aee974217ecdb59cca2623",
+     "evmBytecodePath": "/l1-contracts/out/ChainAdmin.sol/ChainAdmin.json",
+-    "evmDeployedBytecodeHash": "0xf3a2c3efbf8d8be929140dacf6820b60b6c60f1bc036baa68089876ef22c546e"
++    "evmDeployedBytecodeHash": "0x350b9f054f180e920176f8584bb9088a3d2941d116d39959ac843136e9952b5c"
+   },
+   {
+     "contractName": "l1-contracts/ChainAdminOwnable",
+@@ -1137,11 +1129,11 @@
+   },
+   {
+     "contractName": "l1-contracts/L2AdminFactory",
+-    "zkBytecodeHash": "0x010000bb1d81997ee5e9502f12c7c5d2c2b02f9aaba22eb9acf9947b84df63d6",
++    "zkBytecodeHash": "0x010000bb0f1ddfba58ea5148fc38f19cb0204a433ea72a9e964c01a3bd29f78f",
+     "zkBytecodePath": "/l1-contracts/zkout/L2AdminFactory.sol/L2AdminFactory.json",
+-    "evmBytecodeHash": "0x74e40bda0667164a75e5fb043495b70410c2688157b689d41381fa86dac258ab",
++    "evmBytecodeHash": "0xa5b75d49864407e600701272009dc0e0c545eee23db75ff4bdd28b6f45a974aa",
+     "evmBytecodePath": "/l1-contracts/out/L2AdminFactory.sol/L2AdminFactory.json",
+-    "evmDeployedBytecodeHash": "0xf7fd6429dcfc03d7bb25d77d0aec6200532d2ddf62bea6e107b9b362e2bc2d51"
++    "evmDeployedBytecodeHash": "0x43de54df101ec9dfa7e50f62b80451e6eb6a14373b253174b98255521980f79b"
+   },
+   {
+     "contractName": "l1-contracts/L2AssetRouter",
+@@ -1481,11 +1473,11 @@
+   },
+   {
+     "contractName": "l1-contracts/UnsafeBytes",
+-    "zkBytecodeHash": "0x0100000705aab131e66b26d5976a28c7f8616e43bbaa8d162c637f6f412c8259",
++    "zkBytecodeHash": "0x0100000790406be5570e68d7a170c14de821df8d0edd2a3794febd49a35d3f44",
+     "zkBytecodePath": "/l1-contracts/zkout/UnsafeBytes.sol/UnsafeBytes.json",
+-    "evmBytecodeHash": "0x0e43251a01dea60598d935f22a05c7b5afc2e769f049d035d8cfe36ab6f88e6a",
++    "evmBytecodeHash": "0x344a9be943740412c7b98d8da54726488f41e15b715644ce9bcd2112cf0ce5a7",
+     "evmBytecodePath": "/l1-contracts/out/UnsafeBytes.sol/UnsafeBytes.json",
+-    "evmDeployedBytecodeHash": "0x97b15b9cf3a912e69c3f08a5c2dbe0ec352ba2283f230b17e39c2eaa0a8244ca"
++    "evmDeployedBytecodeHash": "0xb012f0e69de085c2ffe296e97f369be81a6f4cb6ee9d1c43a82f70793cef763a"
+   },
+   {
+     "contractName": "l1-contracts/UpgradeStageValidator",
+@@ -1641,9 +1633,9 @@
+   },
+   {
+     "contractName": "da-contracts/RollupL1DAValidator",
+-    "evmBytecodeHash": "0x79940106020626b666e1fbb7371b260b5ae81580607fc31652c6335601558021",
++    "evmBytecodeHash": "0x6849d26996d70901f04e75df3b975eb9e5a01f3850d204132c61d90021c0fd74",
+     "evmBytecodePath": "/da-contracts/out/RollupL1DAValidator.sol/RollupL1DAValidator.json",
+-    "evmDeployedBytecodeHash": "0x098416c16e1bf319b212cd810e771fbbb9ba1d1210a15983d1be7f134a6508c0",
++    "evmDeployedBytecodeHash": "0xf70b0669d525b7cfd8d8cb17c211ef6d1147b1a0ad1c00f2739f7c93476870b4",
+     "zkBytecodeHash": null,
+     "zkBytecodePath": null
+   },
+diff --git a/da-contracts/contracts/CalldataDA.sol b/da-contracts/contracts/CalldataDA.sol
+index 6fa37638a..b1643fcb9 100644
+--- a/da-contracts/contracts/CalldataDA.sol
++++ b/da-contracts/contracts/CalldataDA.sol
+@@ -69,8 +69,15 @@ abstract contract CalldataDA {
+         uint256 ptr = BLOB_DATA_OFFSET + 32 * blobsProvided;
+ 
+         // Now, we need to double check that the provided input was indeed returned by the L2 DA validator.
+-        if (keccak256(_operatorDAInput[:ptr]) != _l2DAValidatorOutputHash) {
+-            revert InvalidL2DAOutputHash(_l2DAValidatorOutputHash);
++        // SYSCOIN Accept either the full-header hash (preferred) or the short 64-byte variant used by some L2 DA validators.
++        {
++            bytes32 hFull = keccak256(_operatorDAInput[:ptr]);
++            if (hFull != _l2DAValidatorOutputHash) {
++                // Fallback: compare against the short (64-byte) prefix (stateDiffHash || fullPubdataHash).
++                if (keccak256(_operatorDAInput[:64]) != _l2DAValidatorOutputHash) {
++                    revert InvalidL2DAOutputHash(_l2DAValidatorOutputHash);
++                }
++            }
+         }
+ 
+         // The rest of the output was provided specifically by the operator
+diff --git a/da-contracts/contracts/DAContractsErrors.sol b/da-contracts/contracts/DAContractsErrors.sol
+index 30cc140c2..fdc215360 100644
+--- a/da-contracts/contracts/DAContractsErrors.sol
++++ b/da-contracts/contracts/DAContractsErrors.sol
+@@ -1,21 +1,6 @@
+ // SPDX-License-Identifier: MIT
+ pragma solidity ^0.8.21;
+ 
+-// 0x53dee67b
+-error PubdataCommitmentsEmpty();
+-// 0x53e6d04d
+-error InvalidPubdataCommitmentsSize();
+-// 0xafd53e2f
+-error BlobHashCommitmentError(uint256 index, bool blobHashEmpty, bool blobCommitmentEmpty);
+-// 0xfc7ab1d3
+-error EmptyBlobVersionHash(uint256 index);
+-// 0x92290acc
+-error NonEmptyBlobVersionHash(uint256 index);
+-// 0x8d5851de
+-error PointEvalCallFailed(bytes);
+-// 0x4daa985d
+-error PointEvalFailed(bytes);
+-
+ // 0x885ae069
+ error OperatorDAInputTooSmall(uint256 operatorDAInputLength, uint256 minAllowedLength);
+ 
+@@ -36,9 +21,3 @@ error PubdataLengthTooBig(uint256 pubdataLength, uint256 totalBlobSizeBytes);
+ 
+ // 0x5513177c
+ error InvalidPubdataHash(bytes32 fullPubdataHash, bytes32 providedPubdataHash);
+-
+-// 0xc771423e
+-error BlobCommitmentNotPublished();
+-
+-// 0x5717f940
+-error InvalidPubdataSource(uint8 pubdataSource);
+diff --git a/da-contracts/contracts/RollupL1DAValidator.sol b/da-contracts/contracts/RollupL1DAValidator.sol
+index cbef2b4b2..9a8e0a703 100644
+--- a/da-contracts/contracts/RollupL1DAValidator.sol
++++ b/da-contracts/contracts/RollupL1DAValidator.sol
+@@ -3,58 +3,16 @@
+ pragma solidity 0.8.28;
+ 
+ import {IL1DAValidator, L1DAValidatorOutput} from "./IL1DAValidator.sol";
++import {OperatorDAInputTooSmall, InvalidL2DAOutputHash} from "./DAContractsErrors.sol";
+ 
+-import {CalldataDA} from "./CalldataDA.sol";
++error BitcoinDAPrecompileCallFailed();
++error BitcoinDAVerificationFailed();
+ 
+-import {BLOB_DA_INPUT_SIZE, BLS_MODULUS, POINT_EVALUATION_PRECOMPILE_ADDR, PUBDATA_COMMITMENT_CLAIMED_VALUE_OFFSET, PUBDATA_COMMITMENT_COMMITMENT_OFFSET, PUBDATA_COMMITMENT_SIZE, PubdataSource} from "./DAUtils.sol";
+-
+-import {BlobCommitmentNotPublished, BlobHashCommitmentError, EmptyBlobVersionHash, InvalidPubdataCommitmentsSize, InvalidPubdataSource, NonEmptyBlobVersionHash, PointEvalCallFailed, PointEvalFailed, PubdataCommitmentsEmpty} from "./DAContractsErrors.sol";
+-
+-uint256 constant BLOBS_SUPPORTED = 6;
+-
+-/// @dev The number of blocks within each we allow blob to be used for DA.
+-/// On Ethereum blobs expire within 4096 epochs, i.e. 4096 * 32 blocks. We reserve
+-/// half of the time in order to ensure reader's ability to read the blob's content.
+-uint256 constant BLOB_EXPIRATION_BLOCKS = (4096 * 32) / 2;
+-
+-contract RollupL1DAValidator is IL1DAValidator, CalldataDA {
+-    /// @notice The published blob commitments. Note, that the correctness of blob commitment with relation to the linear hash
+-    /// is *not* checked in this contract, but is expected to be checked at the verification stage of the ZK contract.
+-    mapping(bytes32 blobCommitment => uint256 blockOfPublishing) public publishedBlobCommitments;
+-
+-    /// @notice Publishes certain blobs, marking commitments to them as published.
+-    /// @param _pubdataCommitments The commitments to the blobs to be published.
+-    /// `_pubdataCommitments` is a packed list of commitments of the following format:
+-    /// opening point (16 bytes) || claimed value (32 bytes) || commitment (48 bytes) || proof (48 bytes)
+-    function publishBlobs(bytes calldata _pubdataCommitments) external {
+-        if (_pubdataCommitments.length == 0) {
+-            revert PubdataCommitmentsEmpty();
+-        }
+-        if (_pubdataCommitments.length % PUBDATA_COMMITMENT_SIZE != 0) {
+-            revert InvalidPubdataCommitmentsSize();
+-        }
+-
+-        uint256 versionedHashIndex = 0;
+-        // solhint-disable-next-line gas-length-in-loops
+-        for (uint256 i = 0; i < _pubdataCommitments.length; i += PUBDATA_COMMITMENT_SIZE) {
+-            bytes32 blobCommitment = _getPublishedBlobCommitment(
+-                versionedHashIndex,
+-                _pubdataCommitments[i:i + PUBDATA_COMMITMENT_SIZE]
+-            );
+-            publishedBlobCommitments[blobCommitment] = block.number;
+-            ++versionedHashIndex;
+-        }
+-    }
+-
+-    function isBlobAvailable(bytes32 _blobCommitment) public view returns (bool) {
+-        uint256 blockOfPublishing = publishedBlobCommitments[_blobCommitment];
+-
+-        // While `block.number` on all used L1 networks is much higher than `BLOB_EXPIRATION_BLOCKS`,
+-        // we still check that `blockOfPublishing > 0` just in case.
+-        return blockOfPublishing > 0 && block.number - blockOfPublishing <= BLOB_EXPIRATION_BLOCKS;
+-    }
+-
+-    /// @inheritdoc IL1DAValidator
++contract RollupL1DAValidator is IL1DAValidator {
++    /// @dev The address of the Syscoin precompile to check for BitcoinDA via a hash lookup
++    address internal constant BITCOINDA_PRECOMPILE_ADDR = address(0x63);
++    /// @dev The static cost per precompile lookup
++    uint16 internal constant BITCOINDA_PRECOMPILE_COST = 1400;
+     function checkDA(
+         uint256, // _chainId
+         uint256, // _batchNumber
+@@ -62,146 +20,54 @@ contract RollupL1DAValidator is IL1DAValidator, CalldataDA {
+         bytes calldata _operatorDAInput,
+         uint256 _maxBlobsSupported
+     ) external view returns (L1DAValidatorOutput memory output) {
+-        (
+-            bytes32 stateDiffHash,
+-            bytes32 fullPubdataHash,
+-            bytes32[] memory blobsLinearHashes,
+-            uint256 blobsProvided,
+-            bytes calldata l1DaInput
+-        ) = _processL2RollupDAValidatorOutputHash(_l2DAValidatorOutputHash, _maxBlobsSupported, _operatorDAInput);
+-
+-        uint8 pubdataSource = uint8(l1DaInput[0]);
+-        bytes32[] memory blobCommitments;
+-
+-        if (pubdataSource == uint8(PubdataSource.Blob)) {
+-            blobCommitments = _processBlobDA(blobsProvided, _maxBlobsSupported, l1DaInput[1:]);
+-        } else if (pubdataSource == uint8(PubdataSource.Calldata)) {
+-            (blobCommitments, ) = _processCalldataDA(blobsProvided, fullPubdataHash, _maxBlobsSupported, l1DaInput[1:]);
+-        } else {
+-            revert InvalidPubdataSource(pubdataSource);
+-        }
+-
+-        // We verify that for each set of blobHash/blobCommitment are either both empty
+-        // or there are values for both.
+-        // This is mostly a sanity check and it is not strictly required.
+-        for (uint256 i = 0; i < _maxBlobsSupported; ++i) {
+-            if (
+-                (blobsLinearHashes[i] == bytes32(0) && blobCommitments[i] != bytes32(0)) ||
+-                (blobsLinearHashes[i] != bytes32(0) && blobCommitments[i] == bytes32(0))
+-            ) {
+-                revert BlobHashCommitmentError(i, blobsLinearHashes[i] == bytes32(0), blobCommitments[i] == bytes32(0));
+-            }
+-        }
+-
+-        output.stateDiffHash = stateDiffHash;
+-        output.blobsLinearHashes = blobsLinearHashes;
+-        output.blobsOpeningCommitments = blobCommitments;
+-    }
+-
+-    /// @notice Generated the blob commitemnt to be used in the cryptographic proof by calling the point evaluation precompile.
+-    /// @param _index The index of the blob in this transaction.
+-    /// @param _commitment The packed: opening point (16 bytes) || claimed value (32 bytes) || commitment (48 bytes) || proof (48 bytes)) = 144 bytes
+-    /// @return The commitment to be used in the cryptographic proof.
+-    function _getPublishedBlobCommitment(uint256 _index, bytes calldata _commitment) internal view returns (bytes32) {
+-        bytes32 blobVersionedHash = _getBlobVersionedHash(_index);
+-
+-        if (blobVersionedHash == bytes32(0)) {
+-            revert EmptyBlobVersionHash(_index);
++        {
++            (bytes32 uncompressedStateDiffHash, bytes32 fullPubdataHash) = _processL2RollupDAValidatorOutputHash(
++                _l2DAValidatorOutputHash,
++                _operatorDAInput
++            );
++            // circuit will commit to the uncompressed diff hash but we related the compressed to the uncompressed one via validatePubData and recomputed the hash to check here.
++            output.stateDiffHash = uncompressedStateDiffHash;
++            // fullPubdataHash should include user_logs, l2_to_l1_messages, published_bytecodes, compressed state_diffs
++            _verifyBitcoinDA(fullPubdataHash);
+         }
+-
+-        // First 16 bytes is the opening point. While we get the point as 16 bytes, the point evaluation precompile
+-        // requires it to be 32 bytes. The blob commitment must use the opening point as 16 bytes though.
+-        bytes32 openingPoint = bytes32(
+-            uint256(uint128(bytes16(_commitment[:PUBDATA_COMMITMENT_CLAIMED_VALUE_OFFSET])))
+-        );
+-
+-        _pointEvaluationPrecompile(
+-            blobVersionedHash,
+-            openingPoint,
+-            _commitment[PUBDATA_COMMITMENT_CLAIMED_VALUE_OFFSET:PUBDATA_COMMITMENT_SIZE]
+-        );
+-
+-        // Take the hash of the versioned hash || opening point || claimed value
+-        return keccak256(abi.encodePacked(blobVersionedHash, _commitment[:PUBDATA_COMMITMENT_COMMITMENT_OFFSET]));
++        // The rest of the fields that relate to blobs are empty.
++        output.blobsLinearHashes = new bytes32[](_maxBlobsSupported);
++        output.blobsOpeningCommitments = new bytes32[](_maxBlobsSupported);
+     }
+ 
+-    /// @notice Verify that the blob DA was correctly provided.
+-    /// @param _blobsProvided The number of blobs provided.
+-    /// @param _maxBlobsSupported Maximum number of blobs supported.
+-    /// @param _operatorDAInput Input used to verify that the blobs contain the data we expect.
+-    function _processBlobDA(
+-        uint256 _blobsProvided,
+-        uint256 _maxBlobsSupported,
++    function _processL2RollupDAValidatorOutputHash(
++        bytes32 _l2DAValidatorOutputHash,
+         bytes calldata _operatorDAInput
+-    ) internal view returns (bytes32[] memory blobsCommitments) {
+-        blobsCommitments = new bytes32[](_maxBlobsSupported);
+-
+-        // For blobs we expect to receive the commitments in the following format:
+-        // 144 bytes for commitment data
+-        // 32 bytes for the prepublished commitment. If it is non-zero, it means that it is expected that
+-        // such commitment was published before. Otherwise, it is expected that it is published in this transaction
+-        if (_operatorDAInput.length != _blobsProvided * BLOB_DA_INPUT_SIZE) {
+-            revert InvalidPubdataCommitmentsSize();
++    ) internal pure returns (bytes32 uncompressedStateDiffHash, bytes32 fullPubdataHash) {
++        if (_operatorDAInput.length < 64) {
++            revert OperatorDAInputTooSmall(_operatorDAInput.length, 64);
+         }
+-
+-        uint256 versionedHashIndex = 0;
+-
+-        // we iterate over the `_operatorDAInput`, while advancing the pointer by `BLOB_DA_INPUT_SIZE` each time
+-        for (uint256 i = 0; i < _blobsProvided; ++i) {
+-            bytes calldata commitmentData = _operatorDAInput[:PUBDATA_COMMITMENT_SIZE];
+-            bytes32 prepublishedCommitment = bytes32(_operatorDAInput[PUBDATA_COMMITMENT_SIZE:BLOB_DA_INPUT_SIZE]);
+-
+-            if (prepublishedCommitment != bytes32(0)) {
+-                // We double check that this commitment has indeed been published.
+-                // If that is the case, we do not care about the actual underlying data.
+-                if (!isBlobAvailable(prepublishedCommitment)) {
+-                    revert BlobCommitmentNotPublished();
+-                }
+-                blobsCommitments[i] = prepublishedCommitment;
+-            } else {
+-                blobsCommitments[i] = _getPublishedBlobCommitment(versionedHashIndex, commitmentData);
+-                ++versionedHashIndex;
+-            }
+-
+-            // Advance the pointer
+-            _operatorDAInput = _operatorDAInput[BLOB_DA_INPUT_SIZE:];
+-        }
+-
+-        // This check is required because we want to ensure that there aren't any extra blobs trying to be published.
+-        // Calling the BLOBHASH opcode with an index > # blobs - 1 yields bytes32(0)
+-        bytes32 versionedHash = _getBlobVersionedHash(versionedHashIndex);
+-        if (versionedHash != bytes32(0)) {
+-            revert NonEmptyBlobVersionHash(versionedHashIndex);
++        // we are isolating fullPubdataHash to ensure its correctness here by checking state diff(validated) + full data hash(unvalidated) == l2 DA validator output(validated)
++        // fullPubdataHash is used as DA and commits to the compressed state diff (zk circuit input)
++        uncompressedStateDiffHash = bytes32(_operatorDAInput[:32]);
++        fullPubdataHash = bytes32(_operatorDAInput[32:64]);
++
++        // Now, we need to double check that the provided input was indeed returned by the L2 DA validator.
++        if (keccak256(_operatorDAInput[:64]) != _l2DAValidatorOutputHash) {
++            revert InvalidL2DAOutputHash(_l2DAValidatorOutputHash);
+         }
+     }
+ 
+-    /// @notice Calls the point evaluation precompile and verifies the output
+-    /// Verify p(z) = y given commitment that corresponds to the polynomial p(x) and a KZG proof.
+-    /// Also verify that the provided commitment matches the provided versioned_hash.
+-    ///
+-    function _pointEvaluationPrecompile(
+-        bytes32 _versionedHash,
+-        bytes32 _openingPoint,
+-        bytes calldata _openingValueCommitmentProof
+-    ) internal view {
+-        bytes memory precompileInput = abi.encodePacked(_versionedHash, _openingPoint, _openingValueCommitmentProof);
++    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
++        return interfaceId == type(IL1DAValidator).interfaceId;
++    }
+ 
+-        (bool success, bytes memory data) = POINT_EVALUATION_PRECOMPILE_ADDR.staticcall(precompileInput);
++    function _verifyBitcoinDA(bytes32 _dataHash) internal view {
++        (bool success, bytes memory result) = BITCOINDA_PRECOMPILE_ADDR.staticcall{gas: BITCOINDA_PRECOMPILE_COST}(
++            abi.encode(_dataHash)
++        );
+ 
+-        // We verify that the point evaluation precompile call was successful by testing the latter 32 bytes of the
+-        // response is equal to BLS_MODULUS as defined in https://eips.ethereum.org/EIPS/eip-4844#point-evaluation-precompile
+         if (!success) {
+-            revert PointEvalCallFailed(precompileInput);
+-        }
+-        (, uint256 result) = abi.decode(data, (uint256, uint256));
+-        if (result != BLS_MODULUS) {
+-            revert PointEvalFailed(abi.encode(result));
++            revert BitcoinDAPrecompileCallFailed();
+         }
+-    }
+-
+-    function _getBlobVersionedHash(uint256 _index) internal view virtual returns (bytes32 versionedHash) {
+-        assembly {
+-            versionedHash := blobhash(_index)
++        if (result.length == 0) {
++            // Assuming empty result means not found or verification failed
++            revert BitcoinDAVerificationFailed();
+         }
+     }
+ }
+diff --git a/da-contracts/foundry.toml b/da-contracts/foundry.toml
+index 821ebfa8d..911a47b60 100644
+--- a/da-contracts/foundry.toml
++++ b/da-contracts/foundry.toml
+@@ -29,4 +29,4 @@ ignored_warnings_from = [
+     "contracts/dev-contracts"
+ ]
+ 
+-# See more config options https://github.com/foundry-rs/foundry/tree/master/crates/config
++# See more config options https://github.com/foundry-rs/foundry/tree/master/crates/config
+\ No newline at end of file
+diff --git a/l1-contracts/contracts/bridge/BridgeHelper.sol b/l1-contracts/contracts/bridge/BridgeHelper.sol
+index bc22e81b2..72588b313 100644
+--- a/l1-contracts/contracts/bridge/BridgeHelper.sol
++++ b/l1-contracts/contracts/bridge/BridgeHelper.sol
+@@ -18,9 +18,10 @@ library BridgeHelper {
+         bytes memory symbol;
+         bytes memory decimals;
+         if (_token == ETH_TOKEN_ADDRESS) {
+-            // when depositing eth to a non-eth based chain it is an ERC20
+-            name = abi.encode("Ether");
+-            symbol = abi.encode("ETH");
++            // Syscoin
++            // when depositing SYS to a non-SYS based chain it is an ERC20
++            name = abi.encode("Syscoin");
++            symbol = abi.encode("SYS");
+             decimals = abi.encode(uint8(18));
+         } else {
+             bool success;
+diff --git a/l1-contracts/contracts/common/libraries/UnsafeBytes.sol b/l1-contracts/contracts/common/libraries/UnsafeBytes.sol
+index e2680d9e0..bb1a82a3d 100644
+--- a/l1-contracts/contracts/common/libraries/UnsafeBytes.sol
++++ b/l1-contracts/contracts/common/libraries/UnsafeBytes.sol
+@@ -16,6 +16,43 @@ pragma solidity ^0.8.21;
+  * Using data in inline assembly can lead to unexpected behavior!
+  */
+ library UnsafeBytes {
++    /// @dev Local helper to copy `len` bytes from `src` at `srcOffset` into `dest` at `destOffset`.
++    /// Correct for non-overlapping regions and handles the tail without over-write.
++    function copy(
++        bytes memory dest,
++        uint256 destOffset,
++        bytes memory src,
++        uint256 srcOffset,
++        uint256 len
++    ) internal pure {
++        if (len == 0) return;
++        assembly {
++            let dstPtr := add(add(dest, 0x20), destOffset)
++            let srcPtr := add(add(src, 0x20), srcOffset)
++
++            let chunks := and(len, not(31))
++            for {
++                let i := 0
++            } lt(i, chunks) {
++                i := add(i, 0x20)
++            } {
++                mstore(add(dstPtr, i), mload(add(srcPtr, i)))
++            }
++
++            // tail
++            let rem := and(len, 31)
++            if rem {
++                let tailDst := add(dstPtr, chunks)
++                let tailSrc := add(srcPtr, chunks)
++
++                let remBits := shl(3, rem)
++                let keepMask := shr(remBits, not(0))
++                let keep := and(mload(tailDst), keepMask)
++                let put := and(mload(tailSrc), not(keepMask))
++                mstore(tailDst, or(put, keep))
++            }
++        }
++    }
+     function readUint32(bytes memory _bytes, uint256 _start) internal pure returns (uint32 result, uint256 offset) {
+         assembly {
+             offset := add(_start, 4)
+@@ -47,9 +84,6 @@ library UnsafeBytes {
+     function readRemainingBytes(bytes memory _bytes, uint256 _start) internal pure returns (bytes memory result) {
+         uint256 arrayLen = _bytes.length - _start;
+         result = new bytes(arrayLen);
+-
+-        assembly {
+-            mcopy(add(result, 0x20), add(_bytes, add(0x20, _start)), arrayLen)
+-        }
++        copy({dest: result, destOffset: 0, src: _bytes, srcOffset: _start, len: arrayLen});
+     }
+ }
+diff --git a/l1-contracts/contracts/governance/ChainAdmin.sol b/l1-contracts/contracts/governance/ChainAdmin.sol
+index 3d1d9f768..1de987e18 100644
+--- a/l1-contracts/contracts/governance/ChainAdmin.sol
++++ b/l1-contracts/contracts/governance/ChainAdmin.sol
+@@ -31,6 +31,12 @@ contract ChainAdmin is IChainAdmin, ReentrancyGuard {
+     /// @notice The set of active restrictions.
+     EnumerableSet.AddressSet internal activeRestrictions;
+ 
++    /// @notice Reverted when attempting to execute admin calls without any active restrictions.
++    /// @dev The contract is intentionally deployed without built-in access control and relies on `IRestriction`
++    /// contracts to enforce policy. Blocking arbitrary calls when there are no active restrictions prevents
++    /// accidentally deploying a permissionless admin.
++    error NoActiveRestrictions();
++
+     /// @notice Ensures that only the `ChainAdmin` contract itself can call the function.
+     /// @dev All functions that require access-control should use `onlySelf` modifier, while the access control logic
+     /// should be implemented in the restriction contracts.
+@@ -91,6 +97,17 @@ contract ChainAdmin is IChainAdmin, ReentrancyGuard {
+         if (_calls.length == 0) {
+             revert NoCallsProvided();
+         }
++        // If there are no active restrictions, allow only bootstrap calls that add restrictions.
++        // This prevents accidental permissionless deployments while preserving the ability to arm
++        // the admin by calling `addRestriction` via `multicall`.
++        if (activeRestrictions.length() == 0) {
++            for (uint256 i = 0; i < _calls.length; ++i) {
++                // Only allow calls that target this contract and invoke addRestriction(address).
++                if (_calls[i].target != address(this) || bytes4(_calls[i].data) != this.addRestriction.selector) {
++                    revert NoActiveRestrictions();
++                }
++            }
++        }
+         for (uint256 i = 0; i < _calls.length; ++i) {
+             _validateCall(_calls[i]);
+ 
+diff --git a/l1-contracts/contracts/governance/PermanentRestriction.sol b/l1-contracts/contracts/governance/PermanentRestriction.sol
+index 22ac599b4..30e831480 100644
+--- a/l1-contracts/contracts/governance/PermanentRestriction.sol
++++ b/l1-contracts/contracts/governance/PermanentRestriction.sol
+@@ -31,6 +31,40 @@ uint256 constant MAX_ALLOWED_NONCE = (1 << 48);
+ /// @dev To be deployed as a transparent upgradable proxy, owned by a trusted decentralized governance.
+ /// @dev Once of the instances of such contract is to ensure that a ZkSyncHyperchain is a rollup forever.
+ contract PermanentRestriction is Restriction, IPermanentRestriction, Ownable2StepUpgradeable {
++    /// @dev Local helper to copy `len` bytes from `src` at `srcOffset` into `dest` at `destOffset`.
++    function _copyBytes(
++        bytes memory dest,
++        uint256 destOffset,
++        bytes memory src,
++        uint256 srcOffset,
++        uint256 len
++    ) internal pure {
++        if (len == 0) return;
++        assembly {
++            let dstPtr := add(add(dest, 0x20), destOffset)
++            let srcPtr := add(add(src, 0x20), srcOffset)
++
++            let chunks := and(len, not(31))
++            for {
++                let i := 0
++            } lt(i, chunks) {
++                i := add(i, 0x20)
++            } {
++                mstore(add(dstPtr, i), mload(add(srcPtr, i)))
++            }
++
++            let rem := and(len, 31)
++            if rem {
++                let tailDst := add(dstPtr, chunks)
++                let tailSrc := add(srcPtr, chunks)
++                let remBits := shl(3, rem)
++                let keepMask := shr(remBits, not(0))
++                let keep := and(mload(tailDst), keepMask)
++                let put := and(mload(tailSrc), not(keepMask))
++                mstore(tailDst, or(put, keep))
++            }
++        }
++    }
+     /// @notice The address of the Bridgehub contract.
+     IBridgehub public immutable BRIDGE_HUB;
+ 
+@@ -313,9 +347,7 @@ contract PermanentRestriction is Restriction, IPermanentRestriction, Ownable2Ste
+             return (address(0), false);
+         }
+         bytes memory encodedData = new bytes(secondBridgeData.length - 1);
+-        assembly {
+-            mcopy(add(encodedData, 0x20), add(secondBridgeData, 0x21), mload(encodedData))
+-        }
++        _copyBytes({dest: encodedData, destOffset: 0, src: secondBridgeData, srcOffset: 1, len: encodedData.length});
+ 
+         // From now on, we know that the used encoding version is `NEW_ENCODING_VERSION` that is
+         // supported only in the new protocol version with Gateway support, so we can assume
+diff --git a/l1-contracts/contracts/state-transition/data-availability/CalldataDA.sol b/l1-contracts/contracts/state-transition/data-availability/CalldataDA.sol
+index 323de2ed3..62033ceb8 100644
+--- a/l1-contracts/contracts/state-transition/data-availability/CalldataDA.sol
++++ b/l1-contracts/contracts/state-transition/data-availability/CalldataDA.sol
+@@ -69,8 +69,15 @@ abstract contract CalldataDA {
+         uint256 ptr = BLOB_DATA_OFFSET + 32 * blobsProvided;
+ 
+         // Now, we need to double check that the provided input was indeed returned by the L2 DA validator.
+-        if (keccak256(_operatorDAInput[:ptr]) != _l2DAValidatorOutputHash) {
+-            revert InvalidL2DAOutputHash(_l2DAValidatorOutputHash);
++        // SYSCOIN Accept either the full-header hash (preferred) or the short 64-byte variant used by some L2 DA validators.
++        {
++            bytes32 hFull = keccak256(_operatorDAInput[:ptr]);
++            if (hFull != _l2DAValidatorOutputHash) {
++                // Fallback: compare against the short (64-byte) prefix (stateDiffHash || fullPubdataHash).
++                if (keccak256(_operatorDAInput[:64]) != _l2DAValidatorOutputHash) {
++                    revert InvalidL2DAOutputHash(_l2DAValidatorOutputHash);
++                }
++            }
+         }
+ 
+         // The rest of the output was provided specifically by the operator
+diff --git a/l1-contracts/foundry.toml b/l1-contracts/foundry.toml
+index 094fae167..39a3d53f5 100644
+--- a/l1-contracts/foundry.toml
++++ b/l1-contracts/foundry.toml
+@@ -47,7 +47,7 @@ optimizer_runs = 9999999
+ # on such reverts
+ allow_internal_expect_revert = true
+ 
+-[profile.default.zksync] 
++[profile.default.zksync]
+ enable_eravm_extensions = true
+ zksolc = "1.5.11"
+ 
+@@ -89,4 +89,4 @@ optimizer = false
+ suppressed_warnings = ["txorigin"]
+ [profile.invariant_tests_l2context_ci.invariant]
+ runs = 2
+-depth = 1000
++depth = 1000
+\ No newline at end of file
+diff --git a/l1-contracts/package.json b/l1-contracts/package.json
+index eecd419e4..b8ecd80f8 100644
+--- a/l1-contracts/package.json
++++ b/l1-contracts/package.json
+@@ -57,7 +57,7 @@
+   "scripts": {
+     "build": "hardhat compile && CONTRACTS_BASE_NETWORK_ZKSYNC=true hardhat compile ",
+     "build-l1": "hardhat compile",
+-    "build:foundry": "forge build && forge build --zksync --skip '*/l1-contracts/test/*'",
++    "build:foundry": "forge build --skip '*/l1-contracts/test/*' && forge build --zksync --skip '*/l1-contracts/test/*'",
+     "clean": "hardhat clean && CONTRACTS_BASE_NETWORK_ZKSYNC=true hardhat clean",
+     "clean:foundry": "forge clean",
+     "test": "yarn workspace da-contracts build && hardhat test test/unit_tests/*.spec.ts --network hardhat",
+diff --git a/l1-contracts/test/foundry/l1/unit/concrete/Executor/Committing.t.sol b/l1-contracts/test/foundry/l1/unit/concrete/Executor/Committing.t.sol
+index e0470686e..a1d662900 100644
+--- a/l1-contracts/test/foundry/l1/unit/concrete/Executor/Committing.t.sol
++++ b/l1-contracts/test/foundry/l1/unit/concrete/Executor/Committing.t.sol
+@@ -435,8 +435,8 @@ contract CommittingTest is ExecutorTest {
+             executor.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+         }
+     }
+-
+-    function test_SuccessfullyCommitBatch() public {
++    // SYSCOIN
++    function skip_SuccessfullyCommitBatch() public {
+         bytes32 uncompressedStateDiffHash = Utils.randomBytes32("uncompressedStateDiffHash");
+         bytes32 totalL2PubdataHash = Utils.randomBytes32("totalL2PubdataHash");
+         uint8 numberOfBlobs = 1;
+@@ -514,8 +514,8 @@ contract CommittingTest is ExecutorTest {
+         uint256 totalBatchesCommitted = getters.getTotalBatchesCommitted();
+         assertEq(totalBatchesCommitted, 1);
+     }
+-
+-    function test_SuccessfullyCommitBatchWithOneBlob() public {
++    // SYSCOIN
++    function skip_SuccessfullyCommitBatchWithOneBlob() public {
+         bytes[] memory correctL2Logs = Utils.createSystemLogs(l2DAValidatorOutputHash);
+         correctL2Logs[uint256(SystemLogKey.PACKED_BATCH_AND_L2_BLOCK_TIMESTAMP_KEY)] = Utils.constructL2Log(
+             true,
+@@ -554,8 +554,8 @@ contract CommittingTest is ExecutorTest {
+ 
+         vm.clearMockedCalls();
+     }
+-
+-    function test_SuccessfullyCommitBatchWithTwoBlob() public {
++    // SYSCOIN
++    function skip_SuccessfullyCommitBatchWithTwoBlob() public {
+         bytes32 uncompressedStateDiffHash = Utils.randomBytes32("uncompressedStateDiffHash");
+         bytes32 totalL2PubdataHash = Utils.randomBytes32("totalL2PubdataHash");
+         uint8 numberOfBlobs = 2;
+@@ -660,18 +660,16 @@ contract CommittingTest is ExecutorTest {
+         correctCommitBatchInfoArray[0].operatorDAInput = operatorDAInput;
+ 
+         vm.prank(validator);
+-
+-        vm.expectRevert(
+-            abi.encodeWithSelector(OperatorDAInputTooSmall.selector, operatorDAInput.length, BLOB_DATA_OFFSET)
+-        );
++        // SYSCOIN
++        vm.expectRevert(abi.encodeWithSelector(OperatorDAInputTooSmall.selector, operatorDAInput.length, 64));
+         (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils.encodeCommitBatchesData(
+             genesisStoredBatchInfo,
+             correctCommitBatchInfoArray
+         );
+         executor.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+     }
+-
+-    function test_RevertWhen_PartialPubdataCommitment() public {
++    // SYSCOIN
++    function skip_RevertWhen_PartialPubdataCommitment() public {
+         bytes[] memory correctL2Logs = Utils.createSystemLogs(l2DAValidatorOutputHash);
+         correctL2Logs[uint256(SystemLogKey.PACKED_BATCH_AND_L2_BLOCK_TIMESTAMP_KEY)] = Utils.constructL2Log(
+             true,
+@@ -710,8 +708,8 @@ contract CommittingTest is ExecutorTest {
+         );
+         executor.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+     }
+-
+-    function test_RevertWhen_TooManyPubdataCommitments() public {
++    // SYSCOIN
++    function skip_RevertWhen_TooManyPubdataCommitments() public {
+         bytes32[] memory blobsLinearHashes = new bytes32[](1);
+         blobsLinearHashes[0] = Utils.randomBytes32("blobsLinearHashes");
+ 
+@@ -751,8 +749,8 @@ contract CommittingTest is ExecutorTest {
+         );
+         executor.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+     }
+-
+-    function test_RevertWhen_NotEnoughPubdataCommitments() public {
++    // SYSCOIN
++    function skip_RevertWhen_NotEnoughPubdataCommitments() public {
+         bytes[] memory correctL2Logs = Utils.createSystemLogs(l2DAValidatorOutputHash);
+         correctL2Logs[uint256(SystemLogKey.PACKED_BATCH_AND_L2_BLOCK_TIMESTAMP_KEY)] = Utils.constructL2Log(
+             true,
+@@ -784,8 +782,8 @@ contract CommittingTest is ExecutorTest {
+ 
+         vm.clearMockedCalls();
+     }
+-
+-    function test_RevertWhen_BlobDoesNotExist() public {
++    // SYSCOIN
++    function skip_RevertWhen_BlobDoesNotExist() public {
+         bytes[] memory correctL2Logs = Utils.createSystemLogs(l2DAValidatorOutputHash);
+         correctL2Logs[uint256(SystemLogKey.PACKED_BATCH_AND_L2_BLOCK_TIMESTAMP_KEY)] = Utils.constructL2Log(
+             true,
+@@ -812,8 +810,8 @@ contract CommittingTest is ExecutorTest {
+ 
+         vm.clearMockedCalls();
+     }
+-
+-    function test_RevertWhen_SecondBlobSentWithoutCommitmentData() public {
++    // SYSCOIN
++    function skip_RevertWhen_SecondBlobSentWithoutCommitmentData() public {
+         bytes[] memory correctL2Logs = Utils.createSystemLogs(l2DAValidatorOutputHash);
+         correctL2Logs[uint256(SystemLogKey.PACKED_BATCH_AND_L2_BLOCK_TIMESTAMP_KEY)] = Utils.constructL2Log(
+             true,
+@@ -845,8 +843,8 @@ contract CommittingTest is ExecutorTest {
+ 
+         vm.clearMockedCalls();
+     }
+-
+-    function test_RevertWhen_SecondBlobLinearHashZeroWithCommitment() public {
++    // SYSCOIN
++    function skip_RevertWhen_SecondBlobLinearHashZeroWithCommitment() public {
+         bytes32 uncompressedStateDiffHash = Utils.randomBytes32("uncompressedStateDiffHash");
+         bytes32 totalL2PubdataHash = Utils.randomBytes32("totalL2PubdataHash");
+         uint8 numberOfBlobs = 2;
+@@ -902,8 +900,8 @@ contract CommittingTest is ExecutorTest {
+         );
+         executor.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+     }
+-
+-    function test_RevertWhen_SecondBlobLinearHashNotZeroWithEmptyCommitment() public {
++    // SYSCOIN
++    function skip_RevertWhen_SecondBlobLinearHashNotZeroWithEmptyCommitment() public {
+         bytes32 uncompressedStateDiffHash = Utils.randomBytes32("uncompressedStateDiffHash");
+         bytes32 totalL2PubdataHash = Utils.randomBytes32("totalL2PubdataHash");
+         uint8 numberOfBlobs = 2;
+diff --git a/l1-contracts/test/foundry/l1/unit/concrete/Executor/_Executor_Shared.t.sol b/l1-contracts/test/foundry/l1/unit/concrete/Executor/_Executor_Shared.t.sol
+index 548af3ef5..067a772ec 100644
+--- a/l1-contracts/test/foundry/l1/unit/concrete/Executor/_Executor_Shared.t.sol
++++ b/l1-contracts/test/foundry/l1/unit/concrete/Executor/_Executor_Shared.t.sol
+@@ -191,6 +191,10 @@ contract ExecutorTest is Test {
+             abi.encode()
+         );
+ 
++        // SYSCOIN: mock Bitcoin DA precompile (address 0x63) so that RollupL1DAValidator.checkDA
++        // does not revert inside _verifyBitcoinDA.
++        vm.mockCall(address(0x63), bytes(""), abi.encode(bytes32(uint256(1))));
++
+         eraChainId = 9;
+ 
+         rollupL1DAValidator = Utils.deployL1RollupDAValidatorBytecode();
+diff --git a/l1-contracts/test/foundry/l1/unit/concrete/Governance/ChainAdmin.t.sol b/l1-contracts/test/foundry/l1/unit/concrete/Governance/ChainAdmin.t.sol
+index c91627964..f6fea69aa 100644
+--- a/l1-contracts/test/foundry/l1/unit/concrete/Governance/ChainAdmin.t.sol
++++ b/l1-contracts/test/foundry/l1/unit/concrete/Governance/ChainAdmin.t.sol
+@@ -11,6 +11,7 @@ import {GettersFacet} from "contracts/state-transition/chain-deps/facets/Getters
+ import {Call} from "contracts/governance/Common.sol";
+ import {DummyRestriction} from "contracts/dev-contracts/DummyRestriction.sol";
+ import {AccessToFallbackDenied, AccessToFunctionDenied, NoCallsProvided, NotARestriction, RestrictionWasAlreadyPresent, RestrictionWasNotPresent} from "contracts/common/L1ContractErrors.sol";
++import {ChainAdmin as ChainAdminContract} from "contracts/governance/ChainAdmin.sol";
+ import {Utils} from "test/foundry/l1/unit/concrete/Utils/Utils.sol";
+ 
+ contract ChainAdminTest is Test {
+@@ -38,6 +39,37 @@ contract ChainAdminTest is Test {
+         dummyRestriction = new DummyRestriction(true);
+     }
+ 
++    function test_multicall_reverts_without_restrictions_unless_bootstrap() public {
++        // Deploy a fresh ChainAdmin with NO restrictions
++        address[] memory empty = new address[](0);
++        ChainAdminContract fresh = new ChainAdminContract(empty);
++
++        // Prepare an arbitrary call that is NOT addRestriction
++        Call[] memory calls = new Call[](1);
++        calls[0] = Call({target: address(gettersFacet), value: 0, data: abi.encodeCall(gettersFacet.getAdmin, ())});
++
++        // Expect revert due to NoActiveRestrictions (custom error)
++        vm.expectRevert(ChainAdminContract.NoActiveRestrictions.selector);
++        fresh.multicall(calls, true);
++
++        // Now try bootstrap path: only addRestriction(address) targeting self is allowed
++        DummyRestriction r = new DummyRestriction(true);
++        Call[] memory bootstrap = new Call[](1);
++        bootstrap[0] = Call({
++            target: address(fresh),
++            value: 0,
++            data: abi.encodeCall(fresh.addRestriction, (address(r)))
++        });
++
++        // Should succeed (no revert)
++        fresh.multicall(bootstrap, true);
++
++        // After bootstrap, arbitrary admin calls can be validated by restrictions (dummy does nothing)
++        Call[] memory post = new Call[](1);
++        post[0] = Call({target: address(gettersFacet), value: 0, data: abi.encodeCall(gettersFacet.getAdmin, ())});
++        fresh.multicall(post, true);
++    }
++
+     function test_getRestrictions() public {
+         address[] memory restrictions = chainAdmin.getRestrictions();
+         assertEq(restrictions[0], address(restriction));
+diff --git a/l1-contracts/test/foundry/l1/unit/concrete/Governance/PermanentRestriction_Copy.t.sol b/l1-contracts/test/foundry/l1/unit/concrete/Governance/PermanentRestriction_Copy.t.sol
+new file mode 100644
+index 000000000..23f1faaf5
+--- /dev/null
++++ b/l1-contracts/test/foundry/l1/unit/concrete/Governance/PermanentRestriction_Copy.t.sol
+@@ -0,0 +1,52 @@
++// SPDX-License-Identifier: MIT
++pragma solidity 0.8.28;
++
++import {Test} from "forge-std/Test.sol";
++import {PermanentRestriction} from "contracts/governance/PermanentRestriction.sol";
++import {IBridgehub} from "contracts/bridgehub/IBridgehub.sol";
++
++contract PermanentRestrictionHarness is PermanentRestriction {
++    constructor(
++        address bridgehub,
++        address l2AdminFactory
++    ) PermanentRestriction(IBridgehub(bridgehub), l2AdminFactory) {}
++
++    function copyNew(bytes memory src, uint256 srcOffset, uint256 len) external pure returns (bytes memory out) {
++        out = new bytes(len);
++        _copyBytes(out, 0, src, srcOffset, len);
++    }
++}
++
++contract PermanentRestriction_CopyTest is Test {
++    PermanentRestrictionHarness private harness;
++
++    function setUp() public {
++        harness = new PermanentRestrictionHarness(address(0xdead), address(0xbeef));
++    }
++
++    function _reference(bytes memory src, uint256 srcOffset, uint256 len) internal pure returns (bytes memory out) {
++        out = new bytes(len);
++        assembly {
++            mcopy(add(out, 0x20), add(add(src, 0x20), srcOffset), len)
++        }
++    }
++
++    function test_copy_matches_reference() public {
++        bytes memory src = new bytes(123);
++        for (uint256 i = 0; i < src.length; i++) src[i] = bytes1(uint8(i));
++        for (uint256 start = 0; start < src.length; start += 7) {
++            uint256 len = src.length - start;
++            bytes memory out = harness.copyNew(src, start, len);
++            bytes memory ref = _reference(src, start, len);
++            assertEq(out, ref);
++        }
++    }
++
++    function test_fuzz_copy(bytes memory src, uint128 start16) public {
++        uint256 start = uint256(start16) % (src.length == 0 ? 1 : src.length);
++        uint256 len = src.length - start;
++        bytes memory out = harness.copyNew(src, start, len);
++        bytes memory ref = _reference(src, start, len);
++        assertEq(out, ref);
++    }
++}
+diff --git a/l1-contracts/test/foundry/l1/unit/concrete/Utils/Utils.sol b/l1-contracts/test/foundry/l1/unit/concrete/Utils/Utils.sol
+index 6555e0234..323ee2886 100644
+--- a/l1-contracts/test/foundry/l1/unit/concrete/Utils/Utils.sol
++++ b/l1-contracts/test/foundry/l1/unit/concrete/Utils/Utils.sol
+@@ -577,14 +577,14 @@ library Utils {
+             blobAuxOutputWords[i * 2 + 1] = _blobCommitments[i];
+         }
+     }
+-
++    // SYSCOIN
+     function constructRollupL2DAValidatorOutputHash(
+         bytes32 _stateDiffHash,
+         bytes32 _totalPubdataHash,
+         uint8 _blobsAmount,
+         bytes32[] memory _blobHashes
+     ) public pure returns (bytes32) {
+-        return keccak256(abi.encodePacked(_stateDiffHash, _totalPubdataHash, _blobsAmount, _blobHashes));
++        return keccak256(abi.encodePacked(_stateDiffHash, _totalPubdataHash));
+     }
+ 
+     function getDefaultBlobCommitment() public pure returns (bytes memory) {
+diff --git a/l1-contracts/test/foundry/l1/unit/concrete/common/libraries/UnsafeBytes/UnsafeBytes_Copy.t.sol b/l1-contracts/test/foundry/l1/unit/concrete/common/libraries/UnsafeBytes/UnsafeBytes_Copy.t.sol
+new file mode 100644
+index 000000000..8507ac653
+--- /dev/null
++++ b/l1-contracts/test/foundry/l1/unit/concrete/common/libraries/UnsafeBytes/UnsafeBytes_Copy.t.sol
+@@ -0,0 +1,109 @@
++// SPDX-License-Identifier: MIT
++pragma solidity 0.8.28;
++
++import {Test} from "forge-std/Test.sol";
++import {UnsafeBytes} from "contracts/common/libraries/UnsafeBytes.sol";
++
++contract UnsafeBytesHarness {
++    function copyNew(bytes memory src, uint256 srcOffset, uint256 len) external pure returns (bytes memory out) {
++        out = new bytes(len);
++        UnsafeBytes.copy(out, 0, src, srcOffset, len);
++    }
++
++    function readRemainingBytes(bytes memory src, uint256 start) external pure returns (bytes memory) {
++        return UnsafeBytes.readRemainingBytes(src, start);
++    }
++}
++
++contract UnsafeBytes_CopyTest is Test {
++    UnsafeBytesHarness private harness;
++
++    function setUp() public {
++        harness = new UnsafeBytesHarness();
++    }
++
++    // Reference implementation equivalent to EIP-5656 mcopy semantics (non-overlapping in our use)
++    function _referenceCopy(bytes memory src, uint256 srcOffset, uint256 len) internal pure returns (bytes memory out) {
++        out = new bytes(len);
++        assembly {
++            let dst := add(out, 0x20)
++            let s := add(add(src, 0x20), srcOffset)
++            let chunks := and(len, not(31))
++            for {
++                let i := 0
++            } lt(i, chunks) {
++                i := add(i, 0x20)
++            } {
++                mstore(add(dst, i), mload(add(s, i)))
++            }
++            let rem := and(len, 31)
++            if rem {
++                let tailDst := add(dst, chunks)
++                let tailSrc := add(s, chunks)
++                let remBits := shl(3, rem)
++                let keepMask := shr(remBits, not(0))
++                let keep := and(mload(tailDst), keepMask)
++                let put := and(mload(tailSrc), not(keepMask))
++                mstore(tailDst, or(put, keep))
++            }
++        }
++    }
++
++    function test_readRemainingBytes_edges() public {
++        bytes memory data = hex"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223"; // 36 bytes
++        // start 0
++        bytes memory a = harness.readRemainingBytes(data, 0);
++        bytes memory b = _referenceCopy(data, 0, data.length);
++        assertEq(a, b, "start=0 full length");
++
++        // start 1
++        a = harness.readRemainingBytes(data, 1);
++        b = _referenceCopy(data, 1, data.length - 1);
++        assertEq(a, b, "start=1 tail 35");
++
++        // start 31
++        a = harness.readRemainingBytes(data, 31);
++        b = _referenceCopy(data, 31, data.length - 31);
++        assertEq(a, b, "start=31 tail 5");
++
++        // start 32
++        a = harness.readRemainingBytes(data, 32);
++        b = _referenceCopy(data, 32, data.length - 32);
++        assertEq(a, b, "start=32 tail 4");
++
++        // start == len
++        a = harness.readRemainingBytes(data, data.length);
++        b = _referenceCopy(data, data.length, 0);
++        assertEq(a, b, "start=len -> empty");
++    }
++
++    function test_fuzz_readRemainingEqualsReference(bytes memory data, uint128 start16) public {
++        uint256 start = uint256(start16) % (data.length == 0 ? 1 : data.length); // allow 0..len-1
++        bytes memory a = harness.readRemainingBytes(data, start);
++        bytes memory b = _referenceCopy(data, start, data.length - start);
++        assertEq(a, b, "readRemainingBytes != reference copy");
++    }
++
++    function test_copy_matches_reference() public {
++        bytes memory data = new bytes(97);
++        for (uint256 i = 0; i < 97; i++) {
++            data[i] = bytes1(uint8(i));
++        }
++        for (uint256 start = 0; start < 97; start += 13) {
++            uint256 len = 97 - start;
++            bytes memory dst = harness.copyNew(data, start, len);
++            bytes memory ref = _referenceCopy(data, start, len);
++            assertEq(dst, ref, string(abi.encodePacked("start=", vm.toString(start))));
++        }
++    }
++
++    function test_fuzz_copy_matches_reference(bytes memory data, uint64 start16, uint64 len16) public {
++        uint256 start = uint256(start16) % (data.length == 0 ? 1 : data.length);
++        uint256 maxLen = data.length - start;
++        uint256 len = maxLen == 0 ? 0 : (uint256(len16) % (maxLen + 1));
++
++        bytes memory dst = harness.copyNew(data, start, len);
++        bytes memory ref = _referenceCopy(data, start, len);
++        assertEq(dst, ref, "copy != reference");
++    }
++}
+diff --git a/l1-contracts/test/foundry/l1/unit/concrete/state-transition/ChainTypeManager/_ChainTypeManager_Shared.t.sol b/l1-contracts/test/foundry/l1/unit/concrete/state-transition/ChainTypeManager/_ChainTypeManager_Shared.t.sol
+index 881f32b33..ed7eade77 100644
+--- a/l1-contracts/test/foundry/l1/unit/concrete/state-transition/ChainTypeManager/_ChainTypeManager_Shared.t.sol
++++ b/l1-contracts/test/foundry/l1/unit/concrete/state-transition/ChainTypeManager/_ChainTypeManager_Shared.t.sol
+@@ -74,6 +74,9 @@ contract ChainTypeManagerTest is Test {
+             abi.encode(makeAddr("l2BridgeAddress"))
+         );
+ 
++        // SYSCOIN: mock Bitcoin DA precompile (address 0x63) globally for CTM tests.
++        vm.mockCall(address(0x63), bytes(""), abi.encode(bytes32(uint256(1))));
++
+         newChainAdmin = makeAddr("chainadmin");
+ 
+         vm.startPrank(address(bridgehub));
+diff --git a/l1-contracts/test/foundry/l1/unit/concrete/state-transition/data-availability/CalldataDA.t.sol b/l1-contracts/test/foundry/l1/unit/concrete/state-transition/data-availability/CalldataDA.t.sol
+index 98406cc5a..e44bc0b14 100644
+--- a/l1-contracts/test/foundry/l1/unit/concrete/state-transition/data-availability/CalldataDA.t.sol
++++ b/l1-contracts/test/foundry/l1/unit/concrete/state-transition/data-availability/CalldataDA.t.sol
+@@ -112,6 +112,42 @@ contract CalldataDATest is Test {
+         assertEq(blobsLinearHashes[0], blobLinearHash, "blobsLinearHashes");
+         assertEq(outputL1DaInput, l1DaInput, "l1DaInput");
+     }
++    // SYSCOIN
++    function test_ProcessL2RollupDAValidatorOutputHashWithShortHash() public {
++        bytes32 stateDiffHash = Utils.randomBytes32("stateDiffHash");
++        bytes32 fullPubdataHash = Utils.randomBytes32("fullPubdataHash");
++        uint8 blobsProvided = 1;
++        bytes32 blobLinearHash = Utils.randomBytes32("blobLinearHash");
++
++        bytes memory shortData = abi.encodePacked(stateDiffHash, fullPubdataHash);
++        bytes memory l1DaInput = "verifydonttrust";
++
++        // Use the short (64-byte) hash as the l2DAValidatorOutputHash
++        bytes32 l2DAValidatorOutputHash = keccak256(shortData);
++
++        // Full operator input includes all data
++        bytes memory operatorDAInput = abi.encodePacked(
++            stateDiffHash,
++            fullPubdataHash,
++            blobsProvided,
++            blobLinearHash,
++            l1DaInput
++        );
++
++        (
++            bytes32 outputStateDiffHash,
++            bytes32 outputFullPubdataHash,
++            bytes32[] memory blobsLinearHashes,
++            uint256 outputBlobsProvided,
++            bytes memory outputL1DaInput
++        ) = calldataDA.processL2RollupDAValidatorOutputHash(l2DAValidatorOutputHash, blobsProvided, operatorDAInput);
++
++        assertEq(outputStateDiffHash, stateDiffHash, "stateDiffHash");
++        assertEq(outputFullPubdataHash, fullPubdataHash, "fullPubdataHash");
++        assertEq(blobsLinearHashes.length, 1, "blobsLinearHashesLength");
++        assertEq(blobsLinearHashes[0], blobLinearHash, "blobsLinearHashes");
++        assertEq(outputL1DaInput, l1DaInput, "l1DaInput");
++    }
+ 
+     /*//////////////////////////////////////////////////////////////////////////
+                             CalldataDA::_processCalldataDA
+diff --git a/l1-contracts/test/foundry/l1/unit/mcopy_oracle/PermanentRestriction_MCopyOracle.t.sol b/l1-contracts/test/foundry/l1/unit/mcopy_oracle/PermanentRestriction_MCopyOracle.t.sol
+new file mode 100644
+index 000000000..34162cea7
+--- /dev/null
++++ b/l1-contracts/test/foundry/l1/unit/mcopy_oracle/PermanentRestriction_MCopyOracle.t.sol
+@@ -0,0 +1,38 @@
++// SPDX-License-Identifier: MIT
++pragma solidity 0.8.28;
++
++import {Test} from "forge-std/Test.sol";
++import {PermanentRestriction} from "contracts/governance/PermanentRestriction.sol";
++import {IBridgehub} from "contracts/bridgehub/IBridgehub.sol";
++
++contract PermanentRestrictionHarness is PermanentRestriction {
++    constructor() PermanentRestriction(IBridgehub(address(0)), address(0)) {}
++
++    function copyNew(bytes memory src, uint256 srcOffset, uint256 len) external pure returns (bytes memory out) {
++        out = new bytes(len);
++        _copyBytes({dest: out, destOffset: 0, src: src, srcOffset: srcOffset, len: len});
++    }
++}
++
++contract PermanentRestriction_MCopyOracle is Test {
++    PermanentRestrictionHarness private harness;
++
++    function setUp() public {
++        harness = new PermanentRestrictionHarness();
++    }
++
++    function _mcopy(bytes memory src, uint256 srcOffset, uint256 len) internal pure returns (bytes memory out) {
++        out = new bytes(len);
++        assembly {
++            mcopy(add(out, 0x20), add(add(src, 0x20), srcOffset), len)
++        }
++    }
++
++    function test_fuzz_copy_matches_mcopy(bytes memory data, uint128 start16) public {
++        uint256 start = uint256(start16) % (data.length == 0 ? 1 : data.length);
++        uint256 len = data.length - start;
++        bytes memory a = harness.copyNew(data, start, len);
++        bytes memory b = _mcopy(data, start, len);
++        assertEq(a, b, "_copyBytes != mcopy");
++    }
++}
+diff --git a/l1-contracts/test/foundry/l1/unit/mcopy_oracle/UnsafeBytes_MCopyOracle.t.sol b/l1-contracts/test/foundry/l1/unit/mcopy_oracle/UnsafeBytes_MCopyOracle.t.sol
+new file mode 100644
+index 000000000..0c2053770
+--- /dev/null
++++ b/l1-contracts/test/foundry/l1/unit/mcopy_oracle/UnsafeBytes_MCopyOracle.t.sol
+@@ -0,0 +1,21 @@
++// SPDX-License-Identifier: MIT
++pragma solidity 0.8.28;
++
++import {Test} from "forge-std/Test.sol";
++import {UnsafeBytes} from "contracts/common/libraries/UnsafeBytes.sol";
++
++contract UnsafeBytes_MCopyOracle is Test {
++    function _mcopy(bytes memory src, uint256 srcOffset, uint256 len) internal pure returns (bytes memory out) {
++        out = new bytes(len);
++        assembly {
++            mcopy(add(out, 0x20), add(add(src, 0x20), srcOffset), len)
++        }
++    }
++
++    function test_fuzz_readRemainingBytes_matches_mcopy(bytes memory data, uint128 start16) public {
++        uint256 start = uint256(start16) % (data.length == 0 ? 1 : data.length);
++        bytes memory a = UnsafeBytes.readRemainingBytes(data, start);
++        bytes memory b = _mcopy(data, start, data.length - start);
++        assertEq(a, b, "readRemainingBytes != mcopy");
++    }
++}
+diff --git a/l2-contracts/contracts/data-availability/RollupL2DAValidator.sol b/l2-contracts/contracts/data-availability/RollupL2DAValidator.sol
+index 18b003d8f..b19dcf33d 100644
+--- a/l2-contracts/contracts/data-availability/RollupL2DAValidator.sol
++++ b/l2-contracts/contracts/data-availability/RollupL2DAValidator.sol
+@@ -4,14 +4,11 @@ pragma solidity 0.8.28;
+ 
+ import {IL2DAValidator} from "../interfaces/IL2DAValidator.sol";
+ import {StateDiffL2DAValidator} from "./StateDiffL2DAValidator.sol";
+-import {PUBDATA_CHUNK_PUBLISHER} from "../L2ContractHelper.sol";
+ 
+-import {SafeCast} from "@openzeppelin/contracts-v4/utils/math/SafeCast.sol";
+ import {EfficientCall} from "@matterlabs/zksync-contracts/l2/system-contracts/libraries/EfficientCall.sol";
+-
+ import {PubdataField, ReconstructionMismatch} from "./DAErrors.sol";
+ 
+-/// Rollup DA validator. It will publish data that would allow to use either calldata or blobs.
++/// BitcoinDA validator. It will publish inclusion data that would allow to verify the inclusion.
+ contract RollupL2DAValidator is IL2DAValidator, StateDiffL2DAValidator {
+     function validatePubdata(
+         // The rolling hash of the user L2->L1 logs.
+@@ -25,11 +22,11 @@ contract RollupL2DAValidator is IL2DAValidator, StateDiffL2DAValidator {
+         // Operator data, that is related to the DA itself
+         bytes calldata _totalL2ToL1PubdataAndStateDiffs
+     ) external returns (bytes32 outputHash) {
+-        (bytes32 stateDiffHash, bytes calldata _totalPubdata, bytes calldata leftover) = _produceStateDiffPubdata(
+-            _chainedMessagesHash,
+-            _chainedBytecodesHash,
+-            _totalL2ToL1PubdataAndStateDiffs
+-        );
++        (
++            bytes32 uncompressedStateDiffHash,
++            bytes calldata _totalPubdata,
++            bytes calldata leftover
++        ) = _produceStateDiffPubdata(_chainedMessagesHash, _chainedBytecodesHash, _totalL2ToL1PubdataAndStateDiffs);
+ 
+         /// Check for calldata strict format
+         if (leftover.length != 0) {
+@@ -38,19 +35,8 @@ contract RollupL2DAValidator is IL2DAValidator, StateDiffL2DAValidator {
+ 
+         // The preimage under the hash `outputHash` is expected to be in the following format:
+         // - First 32 bytes are the hash of the uncompressed state diff.
+-        // - Then, there is a 32-byte hash of the full pubdata.
+-        // - Then, there is the 1-byte number of blobs published.
+-        // - Then, there are linear hashes of the published blobs, 32 bytes each.
+-
+-        bytes32[] memory blobLinearHashes = PUBDATA_CHUNK_PUBLISHER.chunkPubdataToBlobs(_totalPubdata);
++        // - Then, there is a 32-byte hash of the DA.
+ 
+-        outputHash = keccak256(
+-            abi.encodePacked(
+-                stateDiffHash,
+-                EfficientCall.keccak(_totalPubdata),
+-                SafeCast.toUint8(blobLinearHashes.length),
+-                blobLinearHashes
+-            )
+-        );
++        outputHash = keccak256(abi.encodePacked(uncompressedStateDiffHash, EfficientCall.keccak(_totalPubdata)));
+     }
+ }
+diff --git a/l2-contracts/test/foundry/unit/data-availability/RollupL2DAValidator.t.sol b/l2-contracts/test/foundry/unit/data-availability/RollupL2DAValidator.t.sol
+index c0bae2a2d..8297a9539 100644
+--- a/l2-contracts/test/foundry/unit/data-availability/RollupL2DAValidator.t.sol
++++ b/l2-contracts/test/foundry/unit/data-availability/RollupL2DAValidator.t.sol
+@@ -144,10 +144,8 @@ contract RollupL2DAValidatorTest is Test {
+         vm.mockCall(address(PUBDATA_CHUNK_PUBLISHER), chunkPubdataToBlobsData, abi.encode(blobHashes));
+ 
+         bytes32 operatorDAHash = finalizeAndCall(new bytes(0));
+-
+-        bytes32 expectedOperatorDAHash = keccak256(
+-            abi.encodePacked(stateDiffsHash, keccak256(totalPubdata), uint8(blobHashes.length), blobHashes)
+-        );
++        // SYSCOIN
++        bytes32 expectedOperatorDAHash = keccak256(abi.encodePacked(stateDiffsHash, keccak256(totalPubdata)));
+ 
+         assertEq(operatorDAHash, expectedOperatorDAHash);
+     }
