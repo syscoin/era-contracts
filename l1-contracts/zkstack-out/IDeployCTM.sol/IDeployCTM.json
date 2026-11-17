@@ -358,11 +358,6 @@
                 "internalType": "uint256"
               },
               {
-                "name": "availL1DAValidator",
-                "type": "address",
-                "internalType": "address"
-              },
-              {
                 "name": "chainCreationParams",
                 "type": "tuple",
                 "internalType": "struct ChainCreationParamsConfig",

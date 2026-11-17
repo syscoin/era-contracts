@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 
 import {AdminTest} from "./_Admin_Shared.t.sol";
 
-import {MAX_GAS_PER_TRANSACTION} from "contracts/common/Config.sol";
+import {PRIORITY_TX_MAX_GAS_LIMIT} from "contracts/common/PriorityGasLimits.sol"; // SYSCOIN: Separate priority and upgrade gas budgets. // SYSCOIN: Test the new admission ceiling.
 import {TooMuchGas, Unauthorized} from "contracts/common/L1ContractErrors.sol";
 
 contract SetPriorityTxMaxGasLimitTest is AdminTest {
@@ -21,7 +21,7 @@ contract SetPriorityTxMaxGasLimitTest is AdminTest {
 
     function test_revertWhen_newPriorityTxMaxGasLimitIsGreaterThanMaxGasPerTransaction() public {
         address chainTypeManager = utilsFacet.util_getChainTypeManager();
-        uint256 newPriorityTxMaxGasLimit = MAX_GAS_PER_TRANSACTION + 1;
+        uint256 newPriorityTxMaxGasLimit = PRIORITY_TX_MAX_GAS_LIMIT + 1;
 
         vm.startPrank(chainTypeManager);
         vm.expectRevert(TooMuchGas.selector);

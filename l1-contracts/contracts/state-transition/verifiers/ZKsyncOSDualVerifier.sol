@@ -6,12 +6,13 @@ import {UnknownVerifierVersion} from "../L1StateTransitionErrors.sol";
 import {IVerifierV2} from "../chain-interfaces/IVerifierV2.sol";
 import {IVerifier} from "../chain-interfaces/IVerifier.sol";
 import {
+    // SYSCOIN: constructor/rotation now reject non-contract verifiers and no add/remove selector remains.
+    AddressHasNoCode,
     EmptyProofLength,
     UnknownVerifierType,
     MockVerifierNotSupported,
     InvalidProofFormat,
     ZeroAddress,
-    AddressAlreadySet,
     EmptyPublicInputsLength
 } from "../../common/L1ContractErrors.sol";
 import {IZKsyncOSDualVerifier} from "../chain-interfaces/IZKsyncOSDualVerifier.sol";
@@ -21,60 +22,66 @@ import {Ownable2Step} from "@openzeppelin/contracts-v4/access/Ownable2Step.sol";
 /// @title ZKsync OS Dual Verifier
 /// @author Matter Labs
 /// @custom:security-contact security@matterlabs.dev
-/// @notice This contract wraps ZKsync OS specific verifiers and routes zk-SNARK proof verification
-/// to the verifier based on the provided proof type.
+/// @notice SYSCOIN: This contract preserves the pinned upstream dual-verifier deployment surface while routing
+/// zk-SNARK proof verification exclusively to the canonical ZKsync OS PLONK verifier.
 /// It reuses the same interface as on the original `Verifier` contract, while abusing one of the fields
 /// (`_recursiveAggregationInput`) for proof verification type.
 contract ZKsyncOSDualVerifier is Ownable2Step, IVerifier, IZKsyncOSDualVerifier {
     /// @dev Type of verification for ZKsync OS PLONK verifier.
     uint256 internal constant ZKSYNC_OS_PLONK_VERIFICATION_TYPE = 2;
 
-    // @notice This is proof-skipping verifier (mock), it's only checking the correctness of the public inputs.
+    /// @dev Proof-skipping verifier type, supported only by the explicit testnet subclass.
     uint256 internal constant ZKSYNC_OS_MOCK_VERIFICATION_TYPE = 3;
 
+    // SYSCOIN: fresh v0.4 deployments use the V8 proof-header version, not upstream's provisional slot.
+    uint32 internal constant CANONICAL_ZKSYNC_OS_VERIFIER_VERSION = 8;
+
     /// @notice Mapping of different FFLONK verifiers dependent on their version.
+    /// @dev SYSCOIN: retained for exact pinned-upstream artifact, deployment, and introspection
+    /// compatibility. No production proof type routes to this dormant verifier.
     mapping(uint32 => IVerifierV2) public fflonkVerifiers;
 
     /// @notice Mapping of different PLONK verifiers dependent on their version.
+    /// @dev SYSCOIN: only canonical slot 8 may be populated or owner-rotated.
     mapping(uint32 => IVerifier) public plonkVerifiers;
 
-    /// @param _fflonkVerifier The address of the FFLONK verifier contract.
+    /// @notice Emitted when governance atomically rotates the active PLONK verifier.
+    event VerifierReplaced(uint32 indexed version, address indexed oldVerifier, address indexed newVerifier);
+
+    /// @param _fflonkVerifier The dormant, pinned-upstream FFLONK verifier contract.
     /// @param _plonkVerifier The address of the PLONK verifier contract.
-    /// @param _initialOwner The address of the initial owner of this contract.
+    /// @param _initialOwner The initial owner governing verifier-version rotation.
     constructor(IVerifierV2 _fflonkVerifier, IVerifier _plonkVerifier, address _initialOwner) {
-        fflonkVerifiers[0] = _fflonkVerifier;
-        plonkVerifiers[0] = _plonkVerifier;
+        // SYSCOIN: fail closed at deployment; both advertised implementations must be contracts,
+        // while only PLONK is reachable from the consensus proof router.
+        _requireContract(address(_fflonkVerifier));
+        _requireContract(address(_plonkVerifier));
+        require(_initialOwner != address(0), ZeroAddress());
+        fflonkVerifiers[CANONICAL_ZKSYNC_OS_VERIFIER_VERSION] = _fflonkVerifier;
+        plonkVerifiers[CANONICAL_ZKSYNC_OS_VERIFIER_VERSION] = _plonkVerifier;
         _transferOwnership(_initialOwner);
     }
 
-    /// @notice Adds new verifiers for the specified version.
-    /// @param version The version number for the verifiers.
-    /// @param _fflonkVerifier The address of the FFLONK verifier contract.
-    /// @param _plonkVerifier The address of the PLONK verifier contract.
-    function addVerifier(uint32 version, IVerifierV2 _fflonkVerifier, IVerifier _plonkVerifier) external onlyOwner {
-        require(address(_plonkVerifier) != address(0), ZeroAddress());
-        require(
-            fflonkVerifiers[version] == IVerifierV2(address(0)),
-            AddressAlreadySet(address(fflonkVerifiers[version]))
-        );
-        require(plonkVerifiers[version] == IVerifier(address(0)), AddressAlreadySet(address(plonkVerifiers[version])));
-        fflonkVerifiers[version] = _fflonkVerifier;
-        plonkVerifiers[version] = _plonkVerifier;
-    }
-
-    /// @notice Removes the verifiers for the specified version.
-    /// @param version The version number of the verifiers to remove.
-    function removeVerifier(uint32 version) external onlyOwner {
-        delete fflonkVerifiers[version];
-        delete plonkVerifiers[version];
+    /// @notice Atomically rotates the active PLONK verifier without exposing an empty proof-verifier slot.
+    /// @dev SYSCOIN: replaces upstream's independently callable add/remove pair, whose remove-first path
+    /// can halt proof settlement. The dormant FFLONK compatibility artifact is intentionally unchanged.
+    function replaceVerifier(uint32 version, IVerifier newPlonkVerifier) external override onlyOwner {
+        if (version != CANONICAL_ZKSYNC_OS_VERIFIER_VERSION) {
+            revert UnknownVerifierVersion();
+        }
+        _requireContract(address(newPlonkVerifier));
+        address oldVerifier = address(plonkVerifiers[version]);
+        plonkVerifiers[version] = newPlonkVerifier;
+        emit VerifierReplaced(version, oldVerifier, address(newPlonkVerifier));
     }
 
     /// @notice Routes zk-SNARK proof verification to the appropriate verifier based on the proof type.
     /// @param _publicInputs The public inputs to the proof.
     /// @param _proof The zk-SNARK proof itself.
     /// @dev  The first element of the `_proof` determines the verifier type.
-    ///     - 2 indicates the ZKsync OS Plonk verifier should be used.
-    ///     - 3 indicates the mock verifier (skipping proof verification) should be used.
+    ///     - 2 indicates the sole canonical ZKsync OS PLONK verifier.
+    ///     - 3 delegates to `mockVerify`, which production rejects and only the testnet subclass overrides.
+    ///     - Every other type is rejected.
     /// @return Returns `true` if the proof verification succeeds, otherwise throws an error.
     function verify(uint256[] calldata _publicInputs, uint256[] calldata _proof) public view virtual returns (bool) {
         // Ensure the proof has a valid length (at least one element
@@ -91,6 +98,11 @@ contract ZKsyncOSDualVerifier is Ownable2Step, IVerifier, IZKsyncOSDualVerifier 
         // The first element of `_proof` determines the verifier type.
         uint256 verifierType = _proof[0] & 255;
         uint32 verifierVersion = uint32(_proof[0] >> 8);
+
+        // SYSCOIN: only the server's canonical V8 proof header (0x802/0x803) may select a verifier.
+        if (verifierVersion != CANONICAL_ZKSYNC_OS_VERIFIER_VERSION) {
+            revert UnknownVerifierVersion();
+        }
 
         // Validate that unused bits (40-255) are zero.
         if (_proof[0] >> 40 != 0) {
@@ -111,22 +123,27 @@ contract ZKsyncOSDualVerifier is Ownable2Step, IVerifier, IZKsyncOSDualVerifier 
             args[0] = computeZKsyncOSHash(_proof[1], _publicInputs);
 
             return mockVerify(args, _extractZKsyncOSProof(_proof));
-        }
-        // If the verifier type is unknown, revert with an error.
-        else {
+        } else {
             revert UnknownVerifierType();
         }
     }
 
-    /// @dev Verifies the correctness of public input, doesn't check the validity of proof itself.
+    /// @dev Production fails closed; the explicit testnet subclass overrides this for fake proving.
     function mockVerify(uint256[] memory, uint256[] memory) public view virtual returns (bool) {
         revert MockVerifierNotSupported();
     }
 
+    /// @notice Reports whether this wrapper deliberately accepts fake/type-3 proofs.
+    /// @dev SYSCOIN: the server uses this explicit marker to bind prover mode to the deployed verifier.
+    // solhint-disable-next-line func-name-mixedcase
+    function IS_TESTNET_VERIFIER() external pure virtual override returns (bool) {
+        return false;
+    }
+
     /// @inheritdoc IVerifier
-    /// @dev Used for backward compatibility with older Verifier implementation. Returns PLONK verification key hash.
+    /// @dev Returns the sole canonical V8 PLONK verification key hash.
     function verificationKeyHash() external view returns (bytes32) {
-        return plonkVerifiers[0].verificationKeyHash();
+        return plonkVerifiers[CANONICAL_ZKSYNC_OS_VERIFIER_VERSION].verificationKeyHash();
     }
 
     /// @notice Calculates a keccak256 hash of the runtime loaded verification keys from the selected verifier.
@@ -134,6 +151,11 @@ contract ZKsyncOSDualVerifier is Ownable2Step, IVerifier, IZKsyncOSDualVerifier 
     function verificationKeyHash(uint256 _verifierType) external view returns (bytes32) {
         uint256 verifierType = _verifierType & 255;
         uint32 verifierVersion = uint32(_verifierType >> 8);
+
+        // SYSCOIN: key-hash introspection must use the same canonical V8 selector as verification.
+        if (verifierVersion != CANONICAL_ZKSYNC_OS_VERIFIER_VERSION) {
+            revert UnknownVerifierVersion();
+        }
 
         // Validate that unused bits (40-255) are zero.
         if (_verifierType >> 40 != 0) {
@@ -150,6 +172,14 @@ contract ZKsyncOSDualVerifier is Ownable2Step, IVerifier, IZKsyncOSDualVerifier 
         // If the verifier type is unknown, revert with an error.
         else {
             revert UnknownVerifierType();
+        }
+    }
+
+    /// @dev SYSCOIN: shared constructor/rotation validation avoids advertising EOAs as verifiers.
+    function _requireContract(address _verifier) private view {
+        require(_verifier != address(0), ZeroAddress());
+        if (_verifier.code.length == 0) {
+            revert AddressHasNoCode(_verifier);
         }
     }
 

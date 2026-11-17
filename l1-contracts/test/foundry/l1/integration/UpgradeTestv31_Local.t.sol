@@ -12,7 +12,7 @@ import {IComplexUpgrader} from "contracts/state-transition/l2-deps/IComplexUpgra
 import {ProposedUpgrade, ProposedUpgradeLib} from "contracts/state-transition/libraries/ProposedUpgradeLib.sol";
 import {ChainCreationParamsConfig, StateTransitionDeployedAddresses} from "../../../../deploy-scripts/utils/Types.sol";
 import {PublishFactoryDepsResult} from "../../../../deploy-scripts/utils/bytecode/BytecodePublisher.s.sol";
-import {Test} from "forge-std/Test.sol";
+import {StdStorage, Test, stdStorage} from "forge-std/Test.sol";
 import {L1ContractDeployer} from "./_SharedL1ContractDeployer.t.sol";
 import {ZKChainDeployer} from "./_SharedZKChainDeployer.t.sol";
 import {TokenDeployer} from "./_SharedTokenDeployer.t.sol";
@@ -26,6 +26,40 @@ import {Utils} from "../../../../deploy-scripts/utils/Utils.sol";
 
 /// @notice Test-only CTM upgrade that mocks large bytecode reads to avoid MemoryOOG
 contract CTMUpgrade_v31_Test is CTMUpgrade_v31 {
+    /// @dev SYSCOIN: Preserve the production prepare order and implementations, but give each
+    /// artifact-heavy public phase its own EVM frame so Foundry does not retain prior JSON payloads.
+    function prepareCTMUpgrade() public override {
+        // SYSCOIN: This integration test does not assert script gas. Foundry otherwise charges its host-side
+        // artifact/selector processing against one synthetic transaction until the 1 Gi-gas cap.
+        vm.pauseGasMetering();
+        this.deployNewCTMContracts();
+        console.log("CTM contracts are deployed!");
+        this.publishBytecodes();
+        console.log("Bytecodes published!");
+        this.deployStateTransitionDiamondFacetsExternal();
+        this.generateUpgradeData();
+        console.log("Upgrade data generated!");
+        vm.resumeGasMetering();
+    }
+
+    /// @dev SYSCOIN: External-frame adapter for the production facet hook used by prepareCTMUpgrade.
+    function deployStateTransitionDiamondFacetsExternal() external {
+        deployStateTransitionDiamondFacets();
+    }
+
+    /// @dev SYSCOIN: Foundry retains artifact JSON in a script call's EVM memory. Parse each artifact
+    /// in a fresh frame so the expanded V32 deployment stays bounded, while every facet still uses
+    /// the exact production bytecode and constructor data.
+    function deployStateTransitionDiamondFacets() internal override {
+        ctmAddresses.stateTransition.facets.executorFacet = this.deploySimpleContract("ExecutorFacet", false);
+        ctmAddresses.stateTransition.facets.adminFacet = this.deploySimpleContract("AdminFacet", false);
+        ctmAddresses.stateTransition.facets.mailboxFacet = this.deploySimpleContract("MailboxFacet", false);
+        ctmAddresses.stateTransition.facets.gettersFacet = this.deploySimpleContract("GettersFacet", false);
+        ctmAddresses.stateTransition.facets.migratorFacet = this.deploySimpleContract("MigratorFacet", false);
+        ctmAddresses.stateTransition.facets.committerFacet = this.deploySimpleContract("CommitterFacet", false);
+        ctmAddresses.stateTransition.facets.diamondInit = this.deploySimpleContract("DiamondInit", false);
+    }
+
     /// @notice Override to return dummy bytecode hashes instead of reading huge JSON files
     function getL2BytecodeHash(string memory /* contractName */) public view override returns (bytes32) {
         // Return a valid dummy bytecode hash (must have version byte 0x01 and odd length marker)
@@ -93,7 +127,8 @@ contract CoreUpgrade_v31_Test is CoreUpgrade_v31 {
 // Note: there is no longer a separate `EcosystemUpgrade_v31_Test` orchestrator subclass.
 // The local-fork integration test injects mocked Core and CTM upgrades by overriding
 // `createCoreUpgrade` / `createCTMUpgrade` on `UpgradeIntegrationTest_Local` directly,
-// and bumps the protocol version in `setUp` after `setupUpgrade()`.
+// SYSCOIN: The harness seeds the historical V31 versions before `setupUpgrade()`;
+// `afterInitHook` then selects the V32 target from the production upgrade input.
 
 // AGENTS.md mandates "NEVER override storage slots in tests" with no exceptions,
 // but this local-fork harness is the one place we can't avoid it: the v31 upgrade
@@ -126,6 +161,7 @@ contract UpgradeIntegrationTest_Local is
     ZKChainDeployer,
     TokenDeployer
 {
+    using stdStorage for StdStorage;
     using stdToml for string;
 
     address private _serverNotifierProxy;
@@ -142,8 +178,8 @@ contract UpgradeIntegrationTest_Local is
         return new CTMUpgrade_v31_Test();
     }
 
-    /// @notice Bump the CTM's protocol version from the upgrade input TOML so the local
-    ///         genesis-at-v31 fixture exercises a v31 → v32 upgrade.
+    /// @notice SYSCOIN: Select the V32 target from the upgrade input so the locally seeded V31
+    ///         fixture exercises the intended v31 → v32 transition.
     /// @dev    Replaces the former `overrideProtocolVersionForLocalTesting` hook on the
     ///         deleted `DefaultEcosystemUpgrade` orchestrator.
     function afterInitHook() internal override {
@@ -151,6 +187,14 @@ contract UpgradeIntegrationTest_Local is
         string memory upgradeToml = vm.readFile(string.concat(root, ECOSYSTEM_UPGRADE_INPUT));
         uint256 newProtocolVersion = upgradeToml.readUint("$.contracts.new_protocol_version");
         ctmUpgrade.setNewProtocolVersion(newProtocolVersion);
+
+        // SYSCOIN: Reuse the exact production force-deployment payload generated by this fixture's
+        // CTM deployment. Re-reading all expanded ZKsyncOS artifacts in one Foundry frame exceeds
+        // its 128 MiB test memory cap; the existing test-only injection changes no payload bytes.
+        string memory ctmToml = vm.readFile(string.concat(root, CTM_INPUT));
+        ctmUpgrade.setFixedForceDeploymentsData_TestOnly(
+            ctmToml.readBytes("$.contracts_config.force_deployments_data")
+        );
     }
 
     /// Make the freshly-deployed Era diamond look like it has a committed and
@@ -200,6 +244,19 @@ contract UpgradeIntegrationTest_Local is
         CHAIN_INPUT = "/test/foundry/l1/integration/deploy-scripts/script-out/output-deploy-zk-chain-era.toml";
         CHAIN_OUTPUT = "/script-out/foundry-upgrade/local-gateway.toml";
         console.log("setUp: Paths configured");
+
+        // SYSCOIN: The shared deployment fixture now uses the pinned V32 genesis config. Model the
+        // historical V31 CTM and chain state before the upgrade scripts discover their old version;
+        // stdStorage resolves the production getters instead of hard-coding new protocol slots.
+        string memory upgradeToml = vm.readFile(string.concat(vm.projectRoot(), ECOSYSTEM_UPGRADE_INPUT));
+        uint256 oldProtocolVersion = upgradeToml.readUint("$.old_protocol_version");
+        stdstore
+            .target(address(addresses.chainTypeManager))
+            .sig(IChainTypeManager.protocolVersion.selector)
+            .checked_write(oldProtocolVersion);
+        address eraChainDiamond = addresses.bridgehub.getZKChain(eraZKChainId);
+        stdstore.target(eraChainDiamond).sig(IGetters.getProtocolVersion.selector).checked_write(oldProtocolVersion);
+
         setupUpgrade(true);
         console.log("setUp: Upgrade setup complete");
 

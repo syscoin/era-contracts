@@ -54,6 +54,7 @@ import {
   DIAMOND_CUT_DATA_ABI_STRING,
   BRIDGEHUB_CTM_ASSET_DATA_ABI_STRING,
   REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
+  PRIORITY_TX_MAX_GAS_LIMIT,
   FIXED_FORCE_DEPLOYMENTS_DATA_ABI_STRING,
   ADDRESS_ONE,
   // L2_MESSAGE_ROOT_ADDRESS,
@@ -1308,7 +1309,7 @@ export class Deployer {
     const chainData = ethers.utils.defaultAbiCoder.encode(["uint256"], [protocolVersion]);
     const bridgehub = this.bridgehubContract(this.deployWallet);
     // Just some large gas limit that should always be enough
-    const l2GasLimit = ethers.BigNumber.from(72_000_000);
+    const l2GasLimit = ethers.BigNumber.from(PRIORITY_TX_MAX_GAS_LIMIT);
     const expectedCost = (
       await bridgehub.l2TransactionBaseCost(gatewayChainId, gasPrice, l2GasLimit, REQUIRED_L2_GAS_PRICE_PER_PUBDATA)
     ).mul(5);

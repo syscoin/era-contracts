@@ -14,6 +14,8 @@ import {
     TEST_ROLLUP_DA_MANAGER_OWNER
 } from "../Utils/Utils.sol";
 import {ETH_TOKEN_ADDRESS, TESTNET_COMMIT_TIMESTAMP_NOT_OLDER} from "contracts/common/Config.sol";
+// SYSCOIN: zkOS executor fixtures use the canonical compact-DA validator/scheme pair.
+import {SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME} from "contracts/common/SyscoinConfig.sol";
 import {DummyEraBaseTokenBridge} from "contracts/dev-contracts/test/DummyEraBaseTokenBridge.sol";
 import {IAssetRouterShared} from "contracts/bridge/asset-router/IAssetRouterShared.sol";
 import {DummyChainTypeManagerForValidatorTimelock as DummyCTM} from "contracts/dev-contracts/test/DummyChainTypeManagerForValidatorTimelock.sol";
@@ -26,6 +28,7 @@ import {TestCommitter} from "contracts/dev-contracts/test/TestCommitter.sol";
 
 import {GettersFacet} from "contracts/state-transition/chain-deps/facets/Getters.sol";
 import {AdminFacet} from "contracts/state-transition/chain-deps/facets/Admin.sol";
+import {MigratorFacet} from "contracts/state-transition/chain-deps/facets/Migrator.sol";
 import {MailboxFacet} from "contracts/state-transition/chain-deps/facets/Mailbox.sol";
 import {IEIP7702Checker} from "contracts/state-transition/chain-interfaces/IEIP7702Checker.sol";
 import {InitializeData} from "contracts/state-transition/chain-interfaces/IDiamondInit.sol";
@@ -58,6 +61,7 @@ contract ExecutorTest is UtilsCallMockerTest {
     address internal randomSigner;
     address internal l1DAValidator;
     AdminFacet internal admin;
+    MigratorFacet internal migrator;
     TestExecutor internal executor;
     TestCommitter internal committer;
     GettersFacet internal getters;
@@ -125,7 +129,7 @@ contract ExecutorTest is UtilsCallMockerTest {
     }
 
     function getGettersSelectors() public view returns (bytes4[] memory) {
-        bytes4[] memory selectors = new bytes4[](33);
+        bytes4[] memory selectors = new bytes4[](34);
         uint256 i = 0;
         selectors[i++] = getters.getVerifier.selector;
         selectors[i++] = getters.getAdmin.selector;
@@ -160,6 +164,7 @@ contract ExecutorTest is UtilsCallMockerTest {
         selectors[i++] = getters.getChainTypeManager.selector;
         selectors[i++] = getters.getChainId.selector;
         selectors[i++] = getters.getSemverProtocolVersion.selector;
+        selectors[i++] = getters.getTransactionFilterer.selector;
         return selectors;
     }
 
@@ -173,6 +178,14 @@ contract ExecutorTest is UtilsCallMockerTest {
         selectors[i++] = mailbox.requestL2Transaction.selector; // TODO(EVM-1216): remove after the legacy mailbox.finalizeEthWithdrawal and mailbox.requestL2Transaction are deprecated.
         selectors[i++] = mailbox.bridgehubRequestL2Transaction.selector;
         selectors[i++] = mailbox.l2TransactionBaseCost.selector;
+        return selectors;
+    }
+
+    // SYSCOIN: Exercise the real migration pause/unpause boundary in Priority Mode regressions.
+    function getMigratorSelectors() private view returns (bytes4[] memory) {
+        bytes4[] memory selectors = new bytes4[](2);
+        selectors[0] = migrator.pauseDepositsBeforeInitiatingMigration.selector;
+        selectors[1] = migrator.unpauseDeposits.selector;
         return selectors;
     }
 
@@ -250,7 +263,7 @@ contract ExecutorTest is UtilsCallMockerTest {
         address interopCenter = makeAddr("interopCenter");
         dummyBridgehub.setMessageRoot(address(messageRoot));
         sharedBridge = new DummyEraBaseTokenBridge();
-        // dummyBridgehub.setChainAssetHandler(address(chainAssetHandler));
+        dummyBridgehub.setChainAssetHandler(address(chainAssetHandler));
 
         dummyBridgehub.setSharedBridge(address(sharedBridge));
         vm.prank(owner);
@@ -264,17 +277,25 @@ contract ExecutorTest is UtilsCallMockerTest {
 
         l2ChainId = 9;
 
-        rollupL1DAValidator = Utils.deployL1RollupDAValidatorBytecode();
+        // SYSCOIN: Route zkOS fixtures through the direct Bitcoin-DA validator while retaining Era coverage.
+        rollupL1DAValidator = isZKsyncOS()
+            ? Utils.deploySyscoinL1DAValidatorZKsyncOSBytecode()
+            : Utils.deployL1RollupDAValidatorBytecode();
         IEIP7702Checker eip7702Checker = IEIP7702Checker(Utils.deployEIP7702Checker());
 
         // Deploy and configure RollupDAManager with the DA pair
         rollupDAManager = new RollupDAManager();
-        rollupDAManager.updateDAPair(rollupL1DAValidator, L2_DA_COMMITMENT_SCHEME, true);
+        rollupDAManager.updateDAPair(
+            rollupL1DAValidator,
+            isZKsyncOS() ? SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME : L2_DA_COMMITMENT_SCHEME,
+            true
+        );
         rollupDAManager.transferOwnership(TEST_ROLLUP_DA_MANAGER_OWNER);
         vm.prank(TEST_ROLLUP_DA_MANAGER_OWNER);
         rollupDAManager.acceptOwnership();
 
         admin = new AdminFacet(block.chainid, rollupDAManager);
+        migrator = new MigratorFacet(block.chainid, true);
         getters = new GettersFacet();
         executor = new TestExecutor();
         committer = new TestCommitter();
@@ -336,7 +357,7 @@ contract ExecutorTest is UtilsCallMockerTest {
 
         bytes memory diamondInitData = abi.encodeWithSelector(diamondInit.initialize.selector, params);
 
-        Diamond.FacetCut[] memory facetCuts = new Diamond.FacetCut[](5);
+        Diamond.FacetCut[] memory facetCuts = new Diamond.FacetCut[](6);
         facetCuts[0] = Diamond.FacetCut({
             facet: address(admin),
             action: Diamond.Action.Add,
@@ -367,6 +388,12 @@ contract ExecutorTest is UtilsCallMockerTest {
             isFreezable: true,
             selectors: getMailboxSelectors()
         });
+        facetCuts[5] = Diamond.FacetCut({
+            facet: address(migrator),
+            action: Diamond.Action.Add,
+            isFreezable: true,
+            selectors: getMigratorSelectors()
+        });
 
         Diamond.DiamondCutData memory diamondCutData = Diamond.DiamondCutData({
             facetCuts: facetCuts,
@@ -382,13 +409,18 @@ contract ExecutorTest is UtilsCallMockerTest {
         getters = GettersFacet(address(diamondProxy));
         mailbox = MailboxFacet(address(diamondProxy));
         admin = AdminFacet(address(diamondProxy));
+        migrator = MigratorFacet(address(diamondProxy));
         chainTypeManager.setZKChain(l2ChainId, address(diamondProxy));
 
         // Initiate the token multiplier to enable L1 -> L2 transactions.
         vm.prank(address(chainTypeManager));
         admin.setTokenMultiplier(1, 1);
         vm.prank(address(owner));
-        admin.setDAValidatorPair(address(rollupL1DAValidator), L2_DA_COMMITMENT_SCHEME);
+        // SYSCOIN: Match the DA pair allowed by the fixture's RollupDAManager above.
+        admin.setDAValidatorPair(
+            address(rollupL1DAValidator),
+            isZKsyncOS() ? SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME : L2_DA_COMMITMENT_SCHEME
+        );
 
         // Allow to call executor directly, without going through ValidatorTimelock
         vm.prank(address(chainTypeManager));
@@ -428,6 +460,9 @@ contract ExecutorTest is UtilsCallMockerTest {
             lastBlockNumber: uint64(2),
             chainId: l2ChainId,
             operatorDAInput: "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
+            // SYSCOIN: Default fixtures carry no compact edge references unless a test supplies them explicitly.
+            edgeDARefsInput: "",
+            edgeDARefsRoot: bytes32(0),
             slChainId: block.chainid
         });
 

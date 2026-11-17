@@ -51,3 +51,9 @@ error BlobNotPublished();
 
 // 0x8b003a9d
 error InvalidBlobsPublished(bytes32 publishedHash, bytes32 expectedHash);
+
+// SYSCOIN: Distinguish a failed raw Bitcoin-DA precompile call from an unavailable reference.
+// 0x7829908e
+error BitcoinDAPrecompileCallFailed();
+// 0xa6ecadc1
+error BitcoinDAVerificationFailed();

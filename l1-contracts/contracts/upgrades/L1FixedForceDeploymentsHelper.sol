@@ -46,7 +46,8 @@ abstract contract L1FixedForceDeploymentsHelper {
         // It is required for a base token to implement the following methods
         TokenMetadata memory tokenData;
         if (_baseTokenAddress == ETH_TOKEN_ADDRESS) {
-            tokenData = TokenMetadata({name: string("Ether"), symbol: string("ETH"), decimals: 18});
+            // SYSCOIN: the native-token sentinel represents SYS on this deployment.
+            tokenData = TokenMetadata({name: string("Syscoin"), symbol: string("SYS"), decimals: 18});
         } else {
             (string memory stringResult, bool success) = _safeCallTokenMetadataString(
                 _baseTokenAddress,

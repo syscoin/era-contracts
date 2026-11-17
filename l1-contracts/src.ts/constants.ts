@@ -14,6 +14,7 @@ export const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.j
 export const REQUIRED_L2_GAS_PRICE_PER_PUBDATA = require("../../SystemConfig.json").REQUIRED_L2_GAS_PRICE_PER_PUBDATA;
 
 export const SYSTEM_UPGRADE_L2_TX_TYPE = 254;
+export const PRIORITY_TX_MAX_GAS_LIMIT = 1 << 24;
 export const ADDRESS_ONE = "0x0000000000000000000000000000000000000001";
 export const ETH_ADDRESS_IN_CONTRACTS = ADDRESS_ONE;
 export const L1_TO_L2_ALIAS_OFFSET = "0x1111000000000000000000000000000000001111";

@@ -15,6 +15,11 @@ contract DeployCTMIntegrationScript is Script, DeployCTMScript {
 
     function test() internal virtual override {}
 
+    // SYSCOIN: expose the real generated payload for fresh CTM capacity regression checks.
+    function getForceDeploymentsData() public view returns (bytes memory) {
+        return generatedData.forceDeploymentsData;
+    }
+
     function getChainCreationFacetCuts(
         StateTransitionDeployedAddresses memory stateTransition
     ) internal virtual override returns (Diamond.FacetCut[] memory facetCuts) {

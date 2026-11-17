@@ -344,9 +344,8 @@ contract UpgradeIntegrationTestBase is Test {
             "$.deployed_addresses.state_transition.bytecodes_supplier_addr"
         );
         bool isZKsyncOs = outputDeployCTMToml.readBool("$.is_zk_sync_os");
-        address rollupDAManager = isZKsyncOs
-            ? outputDeployCTMToml.readAddress("$.deployed_addresses.blobs_zksync_os_l1_da_validator_addr")
-            : outputDeployCTMToml.readAddress("$.deployed_addresses.l1_rollup_da_manager");
+        // SYSCOIN: zkOS CTM output binds the canonical manager rather than a legacy blob-validator alias.
+        address rollupDAManager = outputDeployCTMToml.readAddress("$.deployed_addresses.l1_rollup_da_manager");
         address governance = outputDeployL1Toml.readAddress("$.deployed_addresses.governance_addr");
 
         return

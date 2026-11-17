@@ -30,6 +30,8 @@ import {IZKChain} from "contracts/state-transition/chain-interfaces/IZKChain.sol
 
 import {UpgradeStageValidator} from "contracts/upgrades/UpgradeStageValidator.sol";
 import {CTMDeployedAddresses} from "../../ctm/DeployCTMUtils.s.sol";
+// SYSCOIN: shared helper enforces explicit mock-mode selection and production default-off.
+import {DeployCTML1OrGateway} from "../../ctm/DeployCTML1OrGateway.sol";
 
 import {BytecodePublisher, PublishFactoryDepsResult} from "../../utils/bytecode/BytecodePublisher.s.sol";
 import {L2ContractHelper} from "contracts/common/l2-helpers/L2ContractHelper.sol";
@@ -191,15 +193,12 @@ contract DefaultCTMUpgrade is Script, DefaultL2UpgradeStrategy {
         config.contracts.validatorTimelockExecutionDelay = IValidatorTimelock(
             ctmAddresses.stateTransition.proxies.validatorTimelock
         ).executionDelay();
-        // FIXME: need to provide the params as the input for the function, since
-        // on mainnet testnetVerifier must be false. Right now the introspection is not available
-        // due to the previous version being v29.
-        // TODO: restore introspection when L1 state is regenerated with ZKsyncOSTestnetVerifier.IS_TESTNET_VERIFIER
-        // (bool ok, bytes memory data) = ctmAddresses.stateTransition.verifiers.verifier.staticcall(
-        //     abi.encodeWithSignature("IS_TESTNET_VERIFIER()")
-        // );
-        // config.testnetVerifier = ok;
-        config.testnetVerifier = true;
+        // SYSCOIN: preserve generic Era behavior, but require an explicit operator opt-in before
+        // a zkOS upgrade can retain today's fake-proof testnet verifier. Production defaults false.
+        config.testnetVerifier = DeployCTML1OrGateway.resolveTestnetVerifierMode(
+            config.isZKsyncOS,
+            vm.envOr("SYSCOIN_ZKSYNC_OS_MOCK_VERIFIER", false)
+        );
         config.contracts.maxNumberOfChains = bridgehub.MAX_NUMBER_OF_ZK_CHAINS();
     }
 

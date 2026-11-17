@@ -5,8 +5,8 @@ import {Test} from "forge-std/Test.sol";
 
 import {ExecutorFacet} from "contracts/state-transition/chain-deps/facets/Executor.sol";
 import {ZKsyncOSDualVerifier} from "contracts/state-transition/verifiers/ZKsyncOSDualVerifier.sol";
-import {IVerifierV2} from "contracts/state-transition/chain-interfaces/IVerifierV2.sol";
 import {IVerifier} from "contracts/state-transition/chain-interfaces/IVerifier.sol";
+import {IVerifierV2} from "contracts/state-transition/chain-interfaces/IVerifierV2.sol";
 import {ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT, PUBLIC_INPUT_SHIFT} from "contracts/common/Config.sol";
 
 contract ExecutorZKsyncOSPublicInputHarness is ExecutorFacet {
@@ -59,7 +59,12 @@ contract ZKsyncOSPublicInputTest is Test {
     function setUp() public {
         executor = new ExecutorZKsyncOSPublicInputHarness();
         // only `computeZKsyncOSHash` is exercised here; the sub-verifiers are never called
-        verifier = new ZKsyncOSDualVerifier(IVerifierV2(address(1)), IVerifier(address(2)), address(this));
+        // SYSCOIN: The hardened dual-verifier constructor requires verifier addresses with deployed code.
+        verifier = new ZKsyncOSDualVerifier(
+            IVerifierV2(address(executor)),
+            IVerifier(address(executor)),
+            address(this)
+        );
         executor.util_setZKsyncOSChainConfig(GOLDEN_CHAIN_ID, ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT);
     }
 

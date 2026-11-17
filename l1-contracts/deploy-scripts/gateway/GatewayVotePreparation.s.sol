@@ -21,7 +21,7 @@ import {Call} from "contracts/governance/Common.sol";
 import {Ownable2Step} from "@openzeppelin/contracts-v4/access/Ownable2Step.sol";
 
 import {ServerNotifier} from "contracts/governance/ServerNotifier.sol";
-import {RollupDAManager} from "contracts/state-transition/data-availability/RollupDAManager.sol";
+// SYSCOIN: The vote flow consumes the constrained DA deployment result and needs no generic manager import.
 import {ProxyAdmin} from "@openzeppelin/contracts-v4/proxy/transparent/ProxyAdmin.sol";
 import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts-v4/proxy/transparent/TransparentUpgradeableProxy.sol";
 
@@ -54,6 +54,7 @@ contract GatewayVotePreparation is DeployCTMUtils, GatewayGovernanceUtils {
 
     CTMDeployedAddresses internal addresses;
 
+    // SYSCOIN: Preserve the upstream output schema; the unsupported Validium address remains zero.
     struct GatewayCTMOutput {
         StateTransitionDeployedAddresses gatewayStateTransition;
         address multicall3;
@@ -96,6 +97,8 @@ contract GatewayVotePreparation is DeployCTMUtils, GatewayGovernanceUtils {
         uint256 ctmRepresentativeChainId
     ) internal virtual {
         super.initializeConfig(configPath, bridgehubProxy);
+        // SYSCOIN: Prevent the generic Era deployment branch from bypassing compact-DA invariants.
+        require(config.isZKsyncOS, "Only the canonical Syscoin ZKsync OS Gateway deployment is supported");
         string memory toml = vm.readFile(configPath);
 
         refundRecipient = toml.readAddress("$.refund_recipient");
@@ -172,7 +175,8 @@ contract GatewayVotePreparation is DeployCTMUtils, GatewayGovernanceUtils {
             runGatewayL1L2TransactionWithFactoryDeps(address(0), hex"", localDeps);
         }
 
-        // Deploy DA contracts (RollupDAManager, ValidiumL1DAValidator, RelayedSLDAValidator)
+        // SYSCOIN: Genesis already contains the offline-attested constructorless relay. The DA
+        // deployer rechecks its live runtime before binding the constrained RollupDAManager.
         runGatewayL1L2Transaction(create2FactoryAddress, deployerCalldata.daCalldata);
 
         // Deploy ProxyAdmin
@@ -230,7 +234,7 @@ contract GatewayVotePreparation is DeployCTMUtils, GatewayGovernanceUtils {
     ) internal {
         Utils.runL1L2Transaction({
             l2Calldata: data,
-            l2GasLimit: 72_000_000,
+            l2GasLimit: Utils.MAX_PRIORITY_TX_GAS,
             l2Value: 0,
             factoryDeps: factoryDeps,
             dstAddress: to,
@@ -246,12 +250,13 @@ contract GatewayVotePreparation is DeployCTMUtils, GatewayGovernanceUtils {
     }
 
     function _saveExpectedGatewayContractsToOutput(DeployedContracts memory expectedGatewayContracts) internal {
+        // SYSCOIN: Persist the canonical compact-relay addresses and a zero legacy Validium slot.
         output = GatewayCTMOutput({
             gatewayStateTransition: expectedGatewayContracts.stateTransition,
             multicall3: expectedGatewayContracts.multicall3,
             diamondCutData: expectedGatewayContracts.diamondCutData,
             rollupSLDAValidator: expectedGatewayContracts.daContracts.rollupSLDAValidator,
-            validiumDAValidator: expectedGatewayContracts.daContracts.validiumDAValidator,
+            validiumDAValidator: address(0),
             rollupDAManager: expectedGatewayContracts.daContracts.rollupDAManager
         });
     }
@@ -434,6 +439,7 @@ contract GatewayVotePreparation is DeployCTMUtils, GatewayGovernanceUtils {
         vm.serializeString("root", "gateway_state_transition", gatewayStateTransition);
         vm.serializeAddress("root", "multicall3_addr", output.multicall3);
         vm.serializeAddress("root", "relayed_sl_da_validator", output.rollupSLDAValidator);
+        // SYSCOIN: Preserve the upstream output key without enabling the unsupported Validium mode.
         vm.serializeAddress("root", "validium_da_validator", output.validiumDAValidator);
         vm.serializeBytes("root", "governance_calls_to_execute", abi.encode(governanceCallsToExecute));
         vm.serializeBytes("root", "ecosystem_admin_calls_to_execute", abi.encode(ecosystemAdminCallsToExecute));

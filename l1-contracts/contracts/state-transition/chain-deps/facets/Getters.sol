@@ -124,6 +124,22 @@ contract GettersFacet is ZKChainBase, IGetters, ILegacyGetters {
         return s.priorityTree.getRoot();
     }
 
+    // SYSCOIN: Expose native queue facts so root-deadline enforcement never trusts relay arrival time.
+    /// @notice Returns native settlement arrival time; root deadlines must read the root Mailbox.
+    /// @dev Rejects indices outside the current tree, including pre-tree legacy entries.
+    function getPriorityTransactionTimestamp(uint256 _index) external view returns (uint256) {
+        require(
+            _index >= s.priorityTree.startIndex && _index < s.priorityTree.getTotalPriorityTxs(),
+            "priority index outside tree"
+        );
+        return s.priorityOpsRequestTimestamp[_index];
+    }
+
+    /// @return Number of siblings in a proof against the current initialized priority tree root.
+    function getPriorityTreeHeight() external view returns (uint256) {
+        return s.priorityTree.tree._sides.length - 1;
+    }
+
     /// @inheritdoc IGetters
     function getPriorityQueueSize() external view returns (uint256) {
         return s.priorityTree.getSize();

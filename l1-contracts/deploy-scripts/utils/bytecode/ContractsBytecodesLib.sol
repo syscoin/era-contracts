@@ -42,11 +42,14 @@ library ContractsBytecodesLib {
     }
 
     function getCreationCodeEVM(string memory contractIdentifier) internal view returns (bytes memory) {
-        string[5] memory DA_CONTRACT_IDENTIFIERS = [
+        // SYSCOIN: Retain pinned-upstream artifact lookup for tests/tooling; canonical deployment
+        // routing rejects legacy DA modes and adds the compact validator alongside them.
+        string[6] memory DA_CONTRACT_IDENTIFIERS = [
             "RollupL1DAValidator",
             "BlobsL1DAValidatorZKsyncOS",
             "AvailL1DAValidator",
             "DummyAvailBridge",
+            "SyscoinL1DAValidatorZKsyncOS",
             "EIP7702Checker"
         ];
 
@@ -82,7 +85,8 @@ library ContractsBytecodesLib {
         // Defines the contract identifiers for L1 contracts that follow the
         // pattern: ContractIdentifier.sol and contract class ContractIdentifier.
         // These are handled by the generic L1 case in getCreationCodeEra.
-        string[56] memory L1_GENERIC_CONTRACT_IDENTIFIERS = [
+        // SYSCOIN: Include the compact relay and manager in generic artifact lookup.
+        string[58] memory L1_GENERIC_CONTRACT_IDENTIFIERS = [
             "AccessControlRestriction",
             "BaseTokenHolder",
             "GWAssetTracker",
@@ -128,8 +132,12 @@ library ContractsBytecodesLib {
             "PermanentRestriction",
             "ProxyAdmin",
             "UpgradeableBeacon",
+            // SYSCOIN: Retain pinned-upstream artifact lookup for tests/tooling; canonical deployment
+            // routing rejects legacy DA modes and adds the compact relay/manager alongside them.
             "RelayedSLDAValidator",
             "RollupDAManager",
+            "SyscoinRelayedSLDAValidator",
+            "SyscoinRollupDAManager",
             "TransparentUpgradeableProxy",
             "ServerNotifier",
             "ValidatorTimelock",
@@ -178,6 +186,7 @@ library ContractsBytecodesLib {
         } else if (Utils.compareStrings(contractIdentifier, "EraVerifierPlonk")) {
             return Utils.readBytecodeL1(false, "EraVerifierPlonk.sol", "EraVerifierPlonk");
         } else if (Utils.compareStrings(contractIdentifier, "ZKsyncOSVerifierFflonk")) {
+            // SYSCOIN: pinned-upstream dormant artifact; the V8 wrapper does not route proofs here.
             return Utils.readBytecodeL1(false, "ZKsyncOSVerifierFflonk.sol", "ZKsyncOSVerifierFflonk");
         } else if (Utils.compareStrings(contractIdentifier, "ZKsyncOSVerifierPlonk")) {
             return Utils.readBytecodeL1(false, "ZKsyncOSVerifierPlonk.sol", "ZKsyncOSVerifierPlonk");

@@ -15,6 +15,7 @@ import {DefaultUpgrade} from "contracts/upgrades/DefaultUpgrade.sol";
 import {DeployCTMScript} from "../../ctm/DeployCTM.s.sol";
 import {FacetCutsLib} from "./FacetCutsLib.sol";
 import {UpgradeHelperLib} from "./UpgradeHelperLib.sol";
+import {UPGRADE_TX_MAX_GAS_LIMIT} from "contracts/common/PriorityGasLimits.sol"; // SYSCOIN: Separate priority and upgrade gas budgets.
 
 abstract contract CTMUpgradeBase is DeployCTMScript {
     /// @notice Build the active VM's full force-deployment list in universal format.
@@ -63,7 +64,7 @@ abstract contract CTMUpgradeBase is DeployCTMScript {
             from: uint256(uint160(L2_FORCE_DEPLOYER_ADDR)),
             to: uint256(uint160(target)),
             // TODO: dont use hardcoded values
-            gasLimit: 72_000_000,
+            gasLimit: UPGRADE_TX_MAX_GAS_LIMIT, // SYSCOIN: Upgrade work is not user priority admission.
             gasPerPubdataByteLimit: 800,
             maxFeePerGas: 0,
             maxPriorityFeePerGas: 0,

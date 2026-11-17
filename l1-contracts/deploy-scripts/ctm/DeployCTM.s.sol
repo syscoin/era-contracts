@@ -15,8 +15,9 @@ import {IL1Bridgehub} from "contracts/core/bridgehub/IL1Bridgehub.sol";
 import {AddressAliasHelper} from "contracts/vendor/AddressAliasHelper.sol";
 
 import {RollupDAManager} from "contracts/state-transition/data-availability/RollupDAManager.sol";
+// SYSCOIN: canonical compact DA replaces the upstream selectable DA schemes.
+import {SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME} from "contracts/common/SyscoinConfig.sol";
 
-import {L2DACommitmentScheme} from "contracts/common/Config.sol";
 import {IChainTypeManager} from "contracts/state-transition/IChainTypeManager.sol";
 
 import {Diamond} from "contracts/state-transition/libraries/Diamond.sol";
@@ -41,7 +42,7 @@ import {GettersFacet} from "contracts/state-transition/chain-deps/facets/Getters
 import {MigratorFacet} from "contracts/state-transition/chain-deps/facets/Migrator.sol";
 import {CommitterFacet} from "contracts/state-transition/chain-deps/facets/Committer.sol";
 import {L1AssetRouter} from "contracts/bridge/asset-router/L1AssetRouter.sol";
-import {ValidiumL1DAValidator} from "contracts/state-transition/data-availability/ValidiumL1DAValidator.sol";
+// SYSCOIN: the legacy Validium validator deployment is intentionally absent.
 import {BytecodesSupplier} from "contracts/upgrades/BytecodesSupplier.sol";
 import {ChainAdminOwnable} from "contracts/governance/ChainAdminOwnable.sol";
 import {ServerNotifier} from "contracts/governance/ServerNotifier.sol";
@@ -128,6 +129,8 @@ contract DeployCTMScript is Script, DeployCTMUtils, IDeployCTM {
         _blakeBatchTmpFile = string.concat(outputPath, ".blake-batch.txt");
 
         initializeConfig(inputPath, bridgehub);
+        // SYSCOIN: this release deliberately rejects the generic Era deployment branch.
+        require(config.isZKsyncOS, "Only the canonical Syscoin ZKsync OS deployment is supported");
 
         console.log("Initializing core contracts from BH");
         IL1Bridgehub bridgehubProxy = IL1Bridgehub(bridgehub);
@@ -135,6 +138,8 @@ contract DeployCTMScript is Script, DeployCTMUtils, IDeployCTM {
         coreAddresses = AddressIntrospector.getCoreDeployedAddresses(bridgehub);
         address assetRouterAddr = address(bridgehubProxy.assetRouter());
         config.eraChainId = AddressIntrospector.getEraChainId(assetRouterAddr);
+        // Fresh CTMs must preserve the root Bridgehub capacity in L2 force-deployment data.
+        config.contracts.maxNumberOfChains = L1Bridgehub(bridgehub).MAX_NUMBER_OF_ZK_CHAINS();
 
         if (reuseGovAndAdmin) {
             ctmAddresses.admin.governance = coreAddresses.shared.governance;
@@ -222,6 +227,7 @@ contract DeployCTMScript is Script, DeployCTMUtils, IDeployCTM {
             config.testnetVerifier
         );
 
+        // SYSCOIN: preserve pinned-upstream FFLONK deployment compatibility; proof routing remains PLONK-only.
         ctmAddresses.stateTransition.verifiers.verifierFflonk = deploySimpleContract(fflonkName, false);
         ctmAddresses.stateTransition.verifiers.verifierPlonk = deploySimpleContract(plonkName, false);
         ctmAddresses.stateTransition.verifiers.verifier = deploySimpleContract(verifierName, false);
@@ -229,11 +235,13 @@ contract DeployCTMScript is Script, DeployCTMUtils, IDeployCTM {
         // Use getDeployerAddress() to ensure the correct sender even when called from nested contracts
         vm.startBroadcast(getDeployerAddress());
         // Called as library (not through vms) to preserve msg.sender
+        // SYSCOIN: Fresh V32 verifier ownership is assigned directly to governance so an
+        // unaccepted Ownable2Step handoff cannot leave the canonical verifier ownerless.
         DeployCTML1OrGateway.initializeVerifier(
             ctmAddresses.stateTransition.verifiers.verifier,
             ctmAddresses.stateTransition.verifiers.verifierFflonk,
             ctmAddresses.stateTransition.verifiers.verifierPlonk,
-            config.ownerAddress,
+            ctmAddresses.admin.governance,
             config.isZKsyncOS
         );
         vm.stopBroadcast();
@@ -251,44 +259,28 @@ contract DeployCTMScript is Script, DeployCTMUtils, IDeployCTM {
     }
 
     function deployDAValidators() internal {
+        require(config.isZKsyncOS, "Syscoin compact DA requires ZKsync OS");
+
+        // SYSCOIN: fresh deployments have exactly one fail-closed compact DA lane.
+        // Legacy result slots remain zero for output-schema compatibility.
+        ctmAddresses.daAddresses.daContracts.rollupSLDAValidator = deploySimpleContract(
+            "SyscoinL1DAValidatorZKsyncOS",
+            false
+        );
         ctmAddresses.daAddresses.daContracts.rollupDAManager = deployWithCreate2AndOwner(
-            "RollupDAManager",
+            "SyscoinRollupDAManager",
             getDeployerAddress(),
             false
         );
         updateRollupDAManager();
 
-        // This contract is located in the `da-contracts` folder, we output it the same way for consistency/ease of use.
-        ctmAddresses.daAddresses.daContracts.rollupSLDAValidator = deploySimpleContract("RollupL1DAValidator", false);
-        if (config.isZKsyncOS) {
-            ctmAddresses.daAddresses.l1BlobsDAValidatorZKsyncOS = deploySimpleContract(
-                "BlobsL1DAValidatorZKsyncOS",
-                false
-            );
-        }
-
-        ctmAddresses.daAddresses.daContracts.validiumDAValidator = deploySimpleContract("ValidiumL1DAValidator", false);
-
-        if (config.contracts.availL1DAValidator == address(0)) {
-            ctmAddresses.daAddresses.availBridge = deploySimpleContract("DummyAvailBridge", false);
-            ctmAddresses.daAddresses.availL1DAValidator = deploySimpleContract("AvailL1DAValidator", false);
-        } else {
-            ctmAddresses.daAddresses.availL1DAValidator = config.contracts.availL1DAValidator;
-        }
         vm.startBroadcast(getDeployerAddress());
         IRollupDAManager rollupDAManager = IRollupDAManager(ctmAddresses.daAddresses.daContracts.rollupDAManager);
         rollupDAManager.updateDAPair(
             ctmAddresses.daAddresses.daContracts.rollupSLDAValidator,
-            getRollupL2DACommitmentScheme(),
+            SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME,
             true
         );
-        if (config.isZKsyncOS) {
-            rollupDAManager.updateDAPair(
-                ctmAddresses.daAddresses.l1BlobsDAValidatorZKsyncOS,
-                getRollupL2DACommitmentScheme(),
-                true
-            );
-        }
         vm.stopBroadcast();
     }
 
@@ -318,7 +310,7 @@ contract DeployCTMScript is Script, DeployCTMUtils, IDeployCTM {
         IOwnable(ctmAddresses.stateTransition.proxies.serverNotifier).transferOwnership(ctmAddresses.chainAdmin);
         IOwnable(ctmAddresses.daAddresses.daContracts.rollupDAManager).transferOwnership(ctmAddresses.admin.governance);
 
-        // Called as library (not through vms) to preserve msg.sender
+        // SYSCOIN: this is now a fail-closed ownership postcondition, not a two-step mutation.
         DeployCTML1OrGateway.transferVerifierOwnership(
             ctmAddresses.stateTransition.verifiers.verifier,
             ctmAddresses.admin.governance,
@@ -393,6 +385,7 @@ contract DeployCTMScript is Script, DeployCTMUtils, IDeployCTM {
             "validator_timelock_addr",
             ctmAddresses.stateTransition.proxies.validatorTimelock
         );
+        // SYSCOIN: only the canonical manager/validator pair is deployed; legacy schema slots stay zero.
         vm.serializeAddress(
             "deployed_addresses",
             "l1_rollup_da_manager",
@@ -403,23 +396,10 @@ contract DeployCTMScript is Script, DeployCTMUtils, IDeployCTM {
             "rollup_l1_da_validator_addr",
             ctmAddresses.daAddresses.daContracts.rollupSLDAValidator
         );
-        vm.serializeAddress(
-            "deployed_addresses",
-            "no_da_validium_l1_validator_addr",
-            ctmAddresses.daAddresses.daContracts.validiumDAValidator
-        );
-        if (config.isZKsyncOS) {
-            vm.serializeAddress(
-                "deployed_addresses",
-                "blobs_zksync_os_l1_da_validator_addr",
-                ctmAddresses.daAddresses.l1BlobsDAValidatorZKsyncOS
-            );
-        }
-        vm.serializeAddress(
-            "deployed_addresses",
-            "avail_l1_da_validator_addr",
-            ctmAddresses.daAddresses.availL1DAValidator
-        );
+        vm.serializeAddress("deployed_addresses", "no_da_validium_l1_validator_addr", address(0));
+        vm.serializeAddress("deployed_addresses", "blobs_zksync_os_l1_da_validator_addr", address(0));
+        vm.serializeAddress("deployed_addresses", "avail_l1_da_validator_addr", address(0));
+        // SYSCOIN: Preserve the upstream output schema without advertising unsupported DA deployments.
         string memory deployedAddresses = vm.serializeString("deployed_addresses", "state_transition", stateTransition);
 
         vm.serializeUint(

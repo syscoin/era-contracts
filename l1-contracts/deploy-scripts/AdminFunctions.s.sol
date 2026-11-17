@@ -17,6 +17,7 @@ import {IZKChain} from "contracts/state-transition/chain-interfaces/IZKChain.sol
 import {IAdmin} from "contracts/state-transition/chain-interfaces/IAdmin.sol";
 import {IMigrator} from "contracts/state-transition/chain-interfaces/IMigrator.sol";
 import {ChainAdmin} from "contracts/governance/ChainAdmin.sol";
+import {IGovernance} from "contracts/governance/IGovernance.sol";
 import {AccessControlRestriction} from "contracts/governance/AccessControlRestriction.sol";
 import {IChainAdminOwnable} from "contracts/governance/IChainAdminOwnable.sol";
 import {IChainTypeManager} from "contracts/state-transition/IChainTypeManager.sol";
@@ -92,15 +93,40 @@ contract AdminFunctions is Script, IAdminFunctions {
     using stdToml for string;
 
     function governanceAcceptOwner(address _governor, address _target) public {
-        Ownable2Step adminContract = Ownable2Step(_target);
-        Utils.executeUpgrade({
-            _governor: _governor,
-            _salt: Utils.currentLegacyGovSalt(),
-            _target: _target,
-            _data: abi.encodeCall(adminContract.acceptOwnership, ()),
-            _value: 0,
-            _delay: 0
+        // SYSCOIN: Scope lost-journal recovery to this exact, state-proven
+        // ownership transition. Generic governance operations must retain
+        // upstream's duplicate-operation failure semantics.
+        Ownable2Step target = Ownable2Step(_target);
+        address currentOwner = target.owner();
+        address pendingOwner = target.pendingOwner();
+        if (currentOwner == _governor) {
+            require(pendingOwner == address(0), "expected owner still has a pending successor");
+            return;
+        }
+        require(pendingOwner == _governor, "governor is not pending owner");
+
+        Call[] memory calls = new Call[](1);
+        calls[0] = Call({target: _target, value: 0, data: abi.encodeCall(target.acceptOwnership, ())});
+        IGovernance.Operation memory operation = IGovernance.Operation({
+            calls: calls,
+            predecessor: bytes32(0),
+            salt: Utils.currentLegacyGovSalt()
         });
+        IGovernance governance = IGovernance(_governor);
+        bytes32 operationId = governance.hashOperation(operation);
+
+        if (governance.getOperationState(operationId) == IGovernance.OperationState.Unset) {
+            vm.startBroadcast(IOwnableSingleStep(_governor).owner());
+            governance.scheduleTransparent(operation, 0);
+            vm.stopBroadcast();
+        }
+        require(governance.isOperationReady(operationId), "ownership operation is not ready");
+        vm.startBroadcast(IOwnableSingleStep(_governor).owner());
+        governance.execute(operation);
+        vm.stopBroadcast();
+
+        require(target.owner() == _governor, "ownership acceptance did not update owner");
+        require(target.pendingOwner() == address(0), "ownership acceptance did not clear pending owner");
     }
 
     /// Walk every Bridgehub-discoverable ecosystem ownable (bridgehub itself,
@@ -455,14 +481,41 @@ contract AdminFunctions is Script, IAdminFunctions {
     }
 
     function chainAdminAcceptAdmin(ChainAdmin _chainAdmin, address _target) public {
-        IZKChain adminContract = IZKChain(_target);
+        IAdmin adminContract = IAdmin(_target);
+        address expectedAdmin = address(_chainAdmin);
 
-        Call[] memory calls = new Call[](1);
-        calls[0] = Call({target: _target, value: 0, data: abi.encodeCall(adminContract.acceptAdmin, ())});
+        // SYSCOIN: BridgeHub and CTM hide pendingAdmin. If ChainAdmin is
+        // already current, atomically overwrite any latent successor with
+        // itself and accept, leaving the same admin with a cleared pending slot.
+        bool alreadyCurrent;
+        try IGetters(_target).getAdmin() returns (address currentAdmin) {
+            alreadyCurrent = currentAdmin == expectedAdmin;
+        } catch {
+            alreadyCurrent = IBridgehubBase(_target).admin() == expectedAdmin;
+        }
+        Call[] memory calls = new Call[](alreadyCurrent ? 2 : 1);
+        if (alreadyCurrent) {
+            calls[0] = Call({
+                target: _target,
+                value: 0,
+                data: abi.encodeCall(adminContract.setPendingAdmin, (expectedAdmin))
+            });
+        }
+        calls[calls.length - 1] = Call({
+            target: _target,
+            value: 0,
+            data: abi.encodeCall(adminContract.acceptAdmin, ())
+        });
 
         vm.startBroadcast();
         _chainAdmin.multicall(calls, true);
         vm.stopBroadcast();
+
+        try IGetters(_target).getAdmin() returns (address currentAdmin) {
+            require(currentAdmin == expectedAdmin, "admin acceptance did not update admin");
+        } catch {
+            require(IBridgehubBase(_target).admin() == expectedAdmin, "admin acceptance did not update admin");
+        }
     }
 
     function chainSetTokenMultiplierSetter(
@@ -1268,7 +1321,10 @@ contract AdminFunctions is Script, IAdminFunctions {
     struct AdminL1L2TxParams {
         address bridgehub;
         uint256 l1GasPrice;
-        uint256 chainId;
+        // SYSCOIN: Migrated edges authorize through their own L1 admin while
+        // Gateway is the priority transaction's independent destination.
+        uint256 adminChainId;
+        uint256 destinationChainId;
         address to;
         uint256 value;
         bytes data;
@@ -1279,9 +1335,9 @@ contract AdminFunctions is Script, IAdminFunctions {
     // Using struct for input to avoid stack too deep errors.
     // The outer function does not expect it as input rightaway for easier encoding in zkstack Rust.
     function _adminL1L2TxInner(AdminL1L2TxParams memory params) private {
-        ChainInfoFromBridgehub memory l2ChainInfo = Utils.chainInfoFromBridgehubAndChainId(
+        ChainInfoFromBridgehub memory adminChainInfo = Utils.chainInfoFromBridgehubAndChainId(
             params.bridgehub,
-            params.chainId
+            params.adminChainId
         );
         Call[] memory calls = Utils.prepareAdminL1L2DirectTransaction(
             params.l1GasPrice,
@@ -1290,13 +1346,13 @@ contract AdminFunctions is Script, IAdminFunctions {
             new bytes[](0),
             params.to,
             params.value,
-            params.chainId,
+            params.destinationChainId,
             params.bridgehub,
-            l2ChainInfo.l1AssetRouterProxy,
+            adminChainInfo.l1AssetRouterProxy,
             params.refundRecipient
         );
 
-        saveAndSendAdminTx(l2ChainInfo.admin, calls, params._shouldSend);
+        saveAndSendAdminTx(adminChainInfo.admin, calls, params._shouldSend);
     }
 
     function adminL1L2Tx(
@@ -1313,7 +1369,43 @@ contract AdminFunctions is Script, IAdminFunctions {
             AdminL1L2TxParams({
                 bridgehub: _bridgehub,
                 l1GasPrice: _l1GasPrice,
-                chainId: _chainId,
+                adminChainId: _chainId,
+                destinationChainId: _chainId,
+                to: _to,
+                value: _value,
+                data: _data,
+                refundRecipient: _refundRecipient,
+                _shouldSend: _shouldSend
+            })
+        );
+    }
+
+    /// @notice SYSCOIN: Send a Gateway-bound priority transaction through the
+    ///         edge chain's L1 ChainAdmin after that edge has migrated.
+    function adminL1L2TxViaGateway(
+        address _bridgehub,
+        uint256 _l1GasPrice,
+        uint256 _adminChainId,
+        uint256 _gatewayChainId,
+        address _to,
+        uint256 _value,
+        bytes memory _data,
+        address _refundRecipient,
+        bool _shouldSend
+    ) public {
+        // SYSCOIN: Fail before broadcast if the caller accidentally combines
+        // an edge administrator with a Gateway that does not settle its chain.
+        require(_adminChainId != 0 && _gatewayChainId != 0, "chain id is zero");
+        require(
+            L1Bridgehub(_bridgehub).settlementLayer(_adminChainId) == _gatewayChainId,
+            "admin chain does not settle on gateway"
+        );
+        _adminL1L2TxInner(
+            AdminL1L2TxParams({
+                bridgehub: _bridgehub,
+                l1GasPrice: _l1GasPrice,
+                adminChainId: _adminChainId,
+                destinationChainId: _gatewayChainId,
                 to: _to,
                 value: _value,
                 data: _data,

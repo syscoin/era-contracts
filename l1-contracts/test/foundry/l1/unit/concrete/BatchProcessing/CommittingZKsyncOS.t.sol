@@ -1,21 +1,103 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "forge-std/console.sol";
+import {Vm} from "forge-std/Test.sol";
 
-import {Utils} from "../Utils/Utils.sol";
+import {Utils, TEST_ROLLUP_DA_MANAGER_OWNER} from "../Utils/Utils.sol";
 import {ExecutorTest} from "./_Executor_Shared.t.sol";
 
 import {CommitBatchInfoZKsyncOS} from "contracts/state-transition/chain-interfaces/ICommitter.sol";
-import {L2DACommitmentScheme} from "contracts/common/Config.sol";
-import {MismatchL2DACommitmentScheme} from "contracts/state-transition/L1StateTransitionErrors.sol";
-import {ValidiumL1DAValidator} from "contracts/state-transition/data-availability/ValidiumL1DAValidator.sol";
+import {L2DACommitmentScheme, TESTNET_COMMIT_TIMESTAMP_NOT_OLDER} from "contracts/common/Config.sol";
 import {
-    InvalidPubdataHash,
-    InvalidBlobsPublished,
-    BlobNotPublished
-} from "../../../da-contracts-imports/DAContractsErrors.sol";
-import {BlobsL1DAValidatorZKsyncOS} from "../../../da-contracts-imports/BlobsL1DAValidatorZKsyncOS.sol";
+    SYSCOIN_BITCOIN_DA_PRECOMPILE,
+    SYSCOIN_EDGE_DA_REFS_DOMAIN,
+    SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME
+} from "contracts/common/SyscoinConfig.sol";
+import {
+    BatchNumberMismatch,
+    BatchTimestampGreaterThanLastL2BlockTimestamp,
+    IncorrectBatchChainId,
+    InvalidBlockRange,
+    L2TimestampTooBig,
+    TimeNotReached
+} from "contracts/common/L1ContractErrors.sol";
+import {
+    MismatchL2DACommitmentScheme,
+    SettlementLayerChainIdMismatch,
+    SyscoinEdgeDACommitmentMismatch,
+    SyscoinEdgeDANotAvailable,
+    SyscoinEdgeDAPrecompileCallFailed,
+    SyscoinEdgeDARefInputMalformed,
+    SyscoinEdgeDARefsRootMismatch
+} from "contracts/state-transition/L1StateTransitionErrors.sol";
+
+// SYSCOIN: This entire downstream test adaptation exercises the canonical V32 compact-DA
+// commitment, edge-reference, and settlement-layer invariants; every divergence in this file is intentional.
+bytes32 constant SYSCOIN_TEST_BATCH_DA_REF = keccak256("SYSCOIN_TEST_BATCH_DA_REF");
+
+contract SyscoinBitcoinDAEcho {
+    fallback() external {
+        assembly {
+            calldatacopy(0, 0, calldatasize())
+            return(0, calldatasize())
+        }
+    }
+}
+
+contract SyscoinBitcoinDARevert {
+    fallback() external {
+        bytes32 dataHash;
+        assembly {
+            dataHash := calldataload(0)
+        }
+        if (dataHash == SYSCOIN_TEST_BATCH_DA_REF) {
+            assembly {
+                calldatacopy(0, 0, calldatasize())
+                return(0, calldatasize())
+            }
+        }
+        assembly {
+            revert(0, 0)
+        }
+    }
+}
+
+contract SyscoinBitcoinDAEmpty {
+    fallback() external {
+        bytes32 dataHash;
+        assembly {
+            dataHash := calldataload(0)
+        }
+        if (dataHash == SYSCOIN_TEST_BATCH_DA_REF) {
+            assembly {
+                calldatacopy(0, 0, calldatasize())
+                return(0, calldatasize())
+            }
+        }
+        assembly {
+            return(0, 0)
+        }
+    }
+}
+
+contract SyscoinBitcoinDAWrong {
+    fallback() external {
+        bytes32 dataHash;
+        assembly {
+            dataHash := calldataload(0)
+        }
+        if (dataHash == SYSCOIN_TEST_BATCH_DA_REF) {
+            assembly {
+                calldatacopy(0, 0, calldatasize())
+                return(0, calldatasize())
+            }
+        }
+        assembly {
+            mstore(0, not(calldataload(0)))
+            return(0, 32)
+        }
+    }
+}
 
 contract CommittingTest is ExecutorTest {
     function isZKsyncOS() internal pure override returns (bool) {
@@ -24,526 +106,331 @@ contract CommittingTest is ExecutorTest {
 
     function setUp() public {}
 
-    function test_SuccessfullyCommitBatchWithCalldata() public {
-        // Calldata DA
-        // With calldata zksync os always produces 1 blob with linear hash equals to zero
-        // Generating similar values here
-        bytes1 source = bytes1(0);
-        bytes32 blobCommitment = bytes32(0);
-        bytes32 uncompressedStateDiffHash = bytes32(0);
-        bytes memory pubdata = abi.encodePacked((Utils.randomBytes32("pubdata")));
-        bytes32 totalL2PubdataHash = keccak256(pubdata);
-        uint8 numberOfBlobs = 1;
-        bytes32[] memory blobsLinearHashes = new bytes32[](1);
-
-        bytes memory operatorDAInput = abi.encodePacked(
-            uncompressedStateDiffHash,
-            totalL2PubdataHash,
-            numberOfBlobs,
-            blobsLinearHashes,
-            source,
-            pubdata,
-            blobCommitment
-        );
-
-        bytes32 daCommitment = Utils.constructRollupL2DAValidatorOutputHash(
-            uncompressedStateDiffHash,
-            totalL2PubdataHash,
-            uint8(numberOfBlobs),
-            blobsLinearHashes
-        );
-
-        CommitBatchInfoZKsyncOS memory correctNewCommitBatchInfo = newCommitBatchInfoZKsyncOS;
-        correctNewCommitBatchInfo.operatorDAInput = operatorDAInput;
-        correctNewCommitBatchInfo.daCommitment = daCommitment;
-
-        CommitBatchInfoZKsyncOS[] memory correctCommitBatchInfoArray = new CommitBatchInfoZKsyncOS[](1);
-        correctCommitBatchInfoArray[0] = correctNewCommitBatchInfo;
-        correctCommitBatchInfoArray[0].operatorDAInput = operatorDAInput;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, correctCommitBatchInfoArray);
-        vm.prank(validator);
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+    function _canonicalSyscoinBatch() internal view returns (CommitBatchInfoZKsyncOS memory batch) {
+        batch = newCommitBatchInfoZKsyncOS;
+        batch.operatorDAInput = abi.encodePacked(SYSCOIN_TEST_BATCH_DA_REF);
+        batch.daCommitment = keccak256(batch.operatorDAInput);
+        batch.daCommitmentScheme = SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME;
     }
 
-    function test_SuccessfullyCommitBatchWithBlobs() public {
-        bytes32[] memory blobVersionedHashes = new bytes32[](2);
-        blobVersionedHashes[0] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5;
-        blobVersionedHashes[1] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6;
+    function _configureSyscoinCompactDA() internal {
+        if (SYSCOIN_BITCOIN_DA_PRECOMPILE.code.length == 0) {
+            vm.etch(SYSCOIN_BITCOIN_DA_PRECOMPILE, address(new SyscoinBitcoinDAEcho()).code);
+        }
 
-        // 2 blobs, which we didn't prepublish
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0), bytes32(0));
-
-        bytes32 daCommitment = keccak256(
-            abi.encodePacked(
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5),
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6)
-            )
-        );
-
-        CommitBatchInfoZKsyncOS memory correctNewCommitBatchInfo = newCommitBatchInfoZKsyncOS;
-        correctNewCommitBatchInfo.operatorDAInput = operatorDAInput;
-        correctNewCommitBatchInfo.daCommitment = daCommitment;
-        correctNewCommitBatchInfo.daCommitmentScheme = L2DACommitmentScheme.BLOBS_ZKSYNC_OS;
-
-        CommitBatchInfoZKsyncOS[] memory correctCommitBatchInfoArray = new CommitBatchInfoZKsyncOS[](1);
-        correctCommitBatchInfoArray[0] = correctNewCommitBatchInfo;
-        correctCommitBatchInfoArray[0].operatorDAInput = operatorDAInput;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, correctCommitBatchInfoArray);
-
-        // with ZKsync OS we have separate pair for blobs
-        address blobsl1DaValidatorZKsyncOS = Utils.deployBlobsL1DAValidatorZKsyncOSBytecode();
+        // SYSCOIN: Deploy the canonical sibling-package artifact through the
+        // existing bytecode utility so test coverage does not alter the L1
+        // package's global compiler remappings or production bytecode metadata.
+        address syscoinValidator = Utils.deploySyscoinL1DAValidatorZKsyncOSBytecode();
+        vm.prank(TEST_ROLLUP_DA_MANAGER_OWNER);
+        rollupDAManager.updateDAPair(syscoinValidator, SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME, true);
         vm.prank(address(owner));
-        admin.setDAValidatorPair(blobsl1DaValidatorZKsyncOS, L2DACommitmentScheme.BLOBS_ZKSYNC_OS);
-
-        vm.prank(validator);
-        vm.blobhashes(blobVersionedHashes);
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+        admin.setDAValidatorPair(syscoinValidator, SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME);
     }
 
-    function test_SuccessfullyCommitBatchWithBlobsPrepublished() public {
-        bytes32[] memory blobVersionedHashes = new bytes32[](2);
-        blobVersionedHashes[0] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5;
-        blobVersionedHashes[1] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6;
+    function _commitCanonicalSyscoinBatch(
+        CommitBatchInfoZKsyncOS memory _batch,
+        bytes memory _expectedRevert
+    ) internal {
+        _configureSyscoinCompactDA();
 
-        // 2 prepublished blobs
-        bytes memory operatorDAInput = abi.encodePacked(blobVersionedHashes[0], blobVersionedHashes[1]);
-
-        bytes32 daCommitment = keccak256(
-            abi.encodePacked(
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5),
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6)
-            )
+        CommitBatchInfoZKsyncOS[] memory batches = new CommitBatchInfoZKsyncOS[](1);
+        batches[0] = _batch;
+        (uint256 processFrom, uint256 processTo, bytes memory commitData) = Utils.encodeCommitBatchesDataZKsyncOS(
+            genesisStoredBatchInfo,
+            batches
         );
 
-        CommitBatchInfoZKsyncOS memory correctNewCommitBatchInfo = newCommitBatchInfoZKsyncOS;
-        correctNewCommitBatchInfo.operatorDAInput = operatorDAInput;
-        correctNewCommitBatchInfo.daCommitment = daCommitment;
-        correctNewCommitBatchInfo.daCommitmentScheme = L2DACommitmentScheme.BLOBS_ZKSYNC_OS;
-
-        CommitBatchInfoZKsyncOS[] memory correctCommitBatchInfoArray = new CommitBatchInfoZKsyncOS[](1);
-        correctCommitBatchInfoArray[0] = correctNewCommitBatchInfo;
-        correctCommitBatchInfoArray[0].operatorDAInput = operatorDAInput;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, correctCommitBatchInfoArray);
-
-        // with ZKsync OS we have separate pair for blobs
-        address blobsl1DaValidatorZKsyncOS = Utils.deployBlobsL1DAValidatorZKsyncOSBytecode();
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(blobsl1DaValidatorZKsyncOS, L2DACommitmentScheme.BLOBS_ZKSYNC_OS);
-
-        vm.blobhashes(blobVersionedHashes);
-        BlobsL1DAValidatorZKsyncOS(blobsl1DaValidatorZKsyncOS).publishBlobs();
-
+        if (_expectedRevert.length != 0) {
+            vm.expectRevert(_expectedRevert);
+        }
         vm.prank(validator);
-        vm.blobhashes(new bytes32[](0));
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+        committer.commitBatchesSharedBridge(address(0), processFrom, processTo, commitData);
     }
 
-    function test_SuccessfullyCommitBatchValidium() public {
-        bytes memory operatorDAInput = abi.encodePacked(
-            bytes32(0) // just put zero with zksync os, no need to verify it
-        );
-
-        bytes32 daCommitment = bytes32(0); // empty
-
-        CommitBatchInfoZKsyncOS memory correctNewCommitBatchInfo = newCommitBatchInfoZKsyncOS;
-        correctNewCommitBatchInfo.operatorDAInput = operatorDAInput;
-        correctNewCommitBatchInfo.daCommitment = daCommitment;
-        correctNewCommitBatchInfo.daCommitmentScheme = L2DACommitmentScheme.EMPTY_NO_DA;
-
-        CommitBatchInfoZKsyncOS[] memory correctCommitBatchInfoArray = new CommitBatchInfoZKsyncOS[](1);
-        correctCommitBatchInfoArray[0] = correctNewCommitBatchInfo;
-        correctCommitBatchInfoArray[0].operatorDAInput = operatorDAInput;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, correctCommitBatchInfoArray);
-
-        // with ZKsync OS we have separate pair for blobs
-        address validiumL1DAValidator = address(new ValidiumL1DAValidator());
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(validiumL1DAValidator, L2DACommitmentScheme.EMPTY_NO_DA);
-
-        vm.prank(validator);
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+    function test_SuccessfullyCommitBatchWithSyscoinCompactDA() public {
+        _commitCanonicalSyscoinBatch(_canonicalSyscoinBatch(), "");
     }
 
     function test_RevertWhen_CommittingWithWrongL2DACommitmentScheme() public {
-        bytes32[] memory blobVersionedHashes = new bytes32[](2);
-        blobVersionedHashes[0] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5;
-        blobVersionedHashes[1] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6;
+        CommitBatchInfoZKsyncOS memory batch = _canonicalSyscoinBatch();
+        batch.daCommitmentScheme = L2DACommitmentScheme.NONE;
 
-        // 2 blobs, which we didn't prepublish
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0), bytes32(0));
-
-        bytes32 daCommitment = keccak256(
-            abi.encodePacked(
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5),
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6)
-            )
-        );
-
-        CommitBatchInfoZKsyncOS memory correctNewCommitBatchInfo = newCommitBatchInfoZKsyncOS;
-        correctNewCommitBatchInfo.operatorDAInput = operatorDAInput;
-        correctNewCommitBatchInfo.daCommitment = daCommitment;
-        correctNewCommitBatchInfo.daCommitmentScheme = L2DACommitmentScheme.BLOBS_AND_PUBDATA_KECCAK256;
-
-        CommitBatchInfoZKsyncOS[] memory correctCommitBatchInfoArray = new CommitBatchInfoZKsyncOS[](1);
-        correctCommitBatchInfoArray[0] = correctNewCommitBatchInfo;
-        correctCommitBatchInfoArray[0].operatorDAInput = operatorDAInput;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, correctCommitBatchInfoArray);
-
-        // with ZKsync OS we have separate pair for blobs
-        address blobsl1DaValidatorZKsyncOS = Utils.deployBlobsL1DAValidatorZKsyncOSBytecode();
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(blobsl1DaValidatorZKsyncOS, L2DACommitmentScheme.BLOBS_ZKSYNC_OS);
-
-        vm.prank(validator);
-        vm.blobhashes(blobVersionedHashes);
-        vm.expectRevert(abi.encodeWithSelector(MismatchL2DACommitmentScheme.selector, 3, 4));
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
-    }
-
-    function test_RevertWhen_CommittingWithWrongCalldata() public {
-        // Calldata DA
-        // With calldata zksync os always produces 1 blob with linear hash equals to zero
-        // Generating similar values here
-        bytes1 source = bytes1(0);
-        bytes32 blobCommitment = bytes32(0);
-        bytes32 uncompressedStateDiffHash = bytes32(0);
-        bytes memory pubdata = abi.encodePacked((Utils.randomBytes32("pubdata")));
-        bytes32 totalL2PubdataHash = bytes32(hex"0123456789012345678901234567890123456789012345678901234567890123"); // hash doesn't correspond to pubdata
-        uint8 numberOfBlobs = 1;
-        bytes32[] memory blobsLinearHashes = new bytes32[](1);
-
-        bytes memory operatorDAInput = abi.encodePacked(
-            uncompressedStateDiffHash,
-            totalL2PubdataHash,
-            numberOfBlobs,
-            blobsLinearHashes,
-            source,
-            pubdata,
-            blobCommitment
-        );
-
-        bytes32 daCommitment = Utils.constructRollupL2DAValidatorOutputHash(
-            uncompressedStateDiffHash,
-            totalL2PubdataHash,
-            uint8(numberOfBlobs),
-            blobsLinearHashes
-        );
-
-        CommitBatchInfoZKsyncOS memory correctNewCommitBatchInfo = newCommitBatchInfoZKsyncOS;
-        correctNewCommitBatchInfo.operatorDAInput = operatorDAInput;
-        correctNewCommitBatchInfo.daCommitment = daCommitment;
-
-        CommitBatchInfoZKsyncOS[] memory correctCommitBatchInfoArray = new CommitBatchInfoZKsyncOS[](1);
-        correctCommitBatchInfoArray[0] = correctNewCommitBatchInfo;
-        correctCommitBatchInfoArray[0].operatorDAInput = operatorDAInput;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, correctCommitBatchInfoArray);
-        vm.prank(validator);
-        vm.expectRevert(abi.encodeWithSelector(InvalidPubdataHash.selector, totalL2PubdataHash, keccak256(pubdata)));
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
-    }
-
-    function test_RevertWhen_CommittingWithWrongBlobs() public {
-        bytes32[] memory blobVersionedHashes = new bytes32[](2);
-        blobVersionedHashes[0] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5;
-        blobVersionedHashes[1] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d7;
-
-        // 2 blobs, which we didn't prepublish
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0), bytes32(0));
-
-        bytes32 daCommitment = keccak256(
-            abi.encodePacked(
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5),
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6)
-            )
-        );
-
-        CommitBatchInfoZKsyncOS memory correctNewCommitBatchInfo = newCommitBatchInfoZKsyncOS;
-        correctNewCommitBatchInfo.operatorDAInput = operatorDAInput;
-        correctNewCommitBatchInfo.daCommitment = daCommitment;
-        correctNewCommitBatchInfo.daCommitmentScheme = L2DACommitmentScheme.BLOBS_ZKSYNC_OS;
-
-        CommitBatchInfoZKsyncOS[] memory correctCommitBatchInfoArray = new CommitBatchInfoZKsyncOS[](1);
-        correctCommitBatchInfoArray[0] = correctNewCommitBatchInfo;
-        correctCommitBatchInfoArray[0].operatorDAInput = operatorDAInput;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, correctCommitBatchInfoArray);
-
-        // with ZKsync OS we have separate pair for blobs
-        address blobsl1DaValidatorZKsyncOS = Utils.deployBlobsL1DAValidatorZKsyncOSBytecode();
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(blobsl1DaValidatorZKsyncOS, L2DACommitmentScheme.BLOBS_ZKSYNC_OS);
-
-        vm.prank(validator);
-        vm.blobhashes(blobVersionedHashes);
-        vm.expectRevert(
+        _commitCanonicalSyscoinBatch(
+            batch,
             abi.encodeWithSelector(
-                InvalidBlobsPublished.selector,
-                keccak256(abi.encodePacked(blobVersionedHashes)),
-                daCommitment
+                MismatchL2DACommitmentScheme.selector,
+                uint256(L2DACommitmentScheme.NONE),
+                uint256(SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME)
             )
         );
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
-    }
-
-    function test_RevertWhen_CommittingWithNotPrepublishedBlobs() public {
-        bytes32[] memory blobVersionedHashes = new bytes32[](2);
-        blobVersionedHashes[0] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5;
-        blobVersionedHashes[1] = 0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6;
-
-        // 2 prepublished blobs
-        bytes memory operatorDAInput = abi.encodePacked(blobVersionedHashes[0], blobVersionedHashes[1]);
-
-        bytes32 daCommitment = keccak256(
-            abi.encodePacked(
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d5),
-                bytes32(0x01c024b4740620a5849f95930cefe298933bdf588123ea897cdf0f2462f6d2d6)
-            )
-        );
-
-        CommitBatchInfoZKsyncOS memory correctNewCommitBatchInfo = newCommitBatchInfoZKsyncOS;
-        correctNewCommitBatchInfo.operatorDAInput = operatorDAInput;
-        correctNewCommitBatchInfo.daCommitment = daCommitment;
-        correctNewCommitBatchInfo.daCommitmentScheme = L2DACommitmentScheme.BLOBS_ZKSYNC_OS;
-
-        CommitBatchInfoZKsyncOS[] memory correctCommitBatchInfoArray = new CommitBatchInfoZKsyncOS[](1);
-        correctCommitBatchInfoArray[0] = correctNewCommitBatchInfo;
-        correctCommitBatchInfoArray[0].operatorDAInput = operatorDAInput;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, correctCommitBatchInfoArray);
-
-        // with ZKsync OS we have separate pair for blobs
-        address blobsl1DaValidatorZKsyncOS = Utils.deployBlobsL1DAValidatorZKsyncOSBytecode();
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(blobsl1DaValidatorZKsyncOS, L2DACommitmentScheme.BLOBS_ZKSYNC_OS);
-
-        vm.prank(validator);
-        vm.expectRevert(BlobNotPublished.selector);
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
     }
 
     function test_RevertWhen_BatchNumberMismatch() public {
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0));
-        bytes32 daCommitment = bytes32(0);
+        CommitBatchInfoZKsyncOS memory batch = _canonicalSyscoinBatch();
+        batch.batchNumber = 5;
 
-        CommitBatchInfoZKsyncOS memory wrongBatchInfo = newCommitBatchInfoZKsyncOS;
-        wrongBatchInfo.operatorDAInput = operatorDAInput;
-        wrongBatchInfo.daCommitment = daCommitment;
-        wrongBatchInfo.daCommitmentScheme = L2DACommitmentScheme.EMPTY_NO_DA;
-        wrongBatchInfo.batchNumber = 5; // Wrong batch number, should be 1
-
-        CommitBatchInfoZKsyncOS[] memory batchArray = new CommitBatchInfoZKsyncOS[](1);
-        batchArray[0] = wrongBatchInfo;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, batchArray);
-
-        address validiumL1DAValidator = address(new ValidiumL1DAValidator());
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(validiumL1DAValidator, L2DACommitmentScheme.EMPTY_NO_DA);
-
-        vm.prank(validator);
-        vm.expectRevert(abi.encodeWithSignature("BatchNumberMismatch(uint256,uint256)", 1, 5));
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+        _commitCanonicalSyscoinBatch(batch, abi.encodeWithSelector(BatchNumberMismatch.selector, 1, 5));
     }
 
     function test_RevertWhen_IncorrectBatchChainId() public {
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0));
-        bytes32 daCommitment = bytes32(0);
+        CommitBatchInfoZKsyncOS memory batch = _canonicalSyscoinBatch();
+        batch.chainId = 999;
 
-        CommitBatchInfoZKsyncOS memory wrongChainBatch = newCommitBatchInfoZKsyncOS;
-        wrongChainBatch.operatorDAInput = operatorDAInput;
-        wrongChainBatch.daCommitment = daCommitment;
-        wrongChainBatch.daCommitmentScheme = L2DACommitmentScheme.EMPTY_NO_DA;
-        wrongChainBatch.chainId = 999; // Wrong chain ID
-
-        CommitBatchInfoZKsyncOS[] memory batchArray = new CommitBatchInfoZKsyncOS[](1);
-        batchArray[0] = wrongChainBatch;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, batchArray);
-
-        address validiumL1DAValidator = address(new ValidiumL1DAValidator());
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(validiumL1DAValidator, L2DACommitmentScheme.EMPTY_NO_DA);
-
-        vm.prank(validator);
-        vm.expectRevert(abi.encodeWithSignature("IncorrectBatchChainId(uint256,uint256)", 999, l2ChainId));
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+        _commitCanonicalSyscoinBatch(batch, abi.encodeWithSelector(IncorrectBatchChainId.selector, 999, l2ChainId));
     }
 
     function test_RevertWhen_IncorrectBatchSLChainId() public {
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0));
-        bytes32 daCommitment = bytes32(0);
+        CommitBatchInfoZKsyncOS memory batch = _canonicalSyscoinBatch();
+        batch.slChainId = 999;
 
-        CommitBatchInfoZKsyncOS memory wrongChainBatch = newCommitBatchInfoZKsyncOS;
-        wrongChainBatch.operatorDAInput = operatorDAInput;
-        wrongChainBatch.daCommitment = daCommitment;
-        wrongChainBatch.daCommitmentScheme = L2DACommitmentScheme.EMPTY_NO_DA;
-        wrongChainBatch.slChainId = 999; // Wrong SL chain ID
-
-        CommitBatchInfoZKsyncOS[] memory batchArray = new CommitBatchInfoZKsyncOS[](1);
-        batchArray[0] = wrongChainBatch;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, batchArray);
-
-        address validiumL1DAValidator = address(new ValidiumL1DAValidator());
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(validiumL1DAValidator, L2DACommitmentScheme.EMPTY_NO_DA);
-
-        vm.prank(validator);
-        vm.expectRevert(abi.encodeWithSignature("SettlementLayerChainIdMismatch()"));
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+        _commitCanonicalSyscoinBatch(batch, abi.encodeWithSelector(SettlementLayerChainIdMismatch.selector));
     }
 
     function test_RevertWhen_InvalidBlockRange() public {
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0));
-        bytes32 daCommitment = bytes32(0);
+        CommitBatchInfoZKsyncOS memory batch = _canonicalSyscoinBatch();
+        batch.firstBlockNumber = 10;
+        batch.lastBlockNumber = 5;
 
-        CommitBatchInfoZKsyncOS memory invalidBlockBatch = newCommitBatchInfoZKsyncOS;
-        invalidBlockBatch.operatorDAInput = operatorDAInput;
-        invalidBlockBatch.daCommitment = daCommitment;
-        invalidBlockBatch.daCommitmentScheme = L2DACommitmentScheme.EMPTY_NO_DA;
-        invalidBlockBatch.firstBlockNumber = 10; // firstBlockNumber > lastBlockNumber
-        invalidBlockBatch.lastBlockNumber = 5;
-
-        CommitBatchInfoZKsyncOS[] memory batchArray = new CommitBatchInfoZKsyncOS[](1);
-        batchArray[0] = invalidBlockBatch;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, batchArray);
-
-        address validiumL1DAValidator = address(new ValidiumL1DAValidator());
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(validiumL1DAValidator, L2DACommitmentScheme.EMPTY_NO_DA);
-
-        vm.prank(validator);
-        vm.expectRevert(abi.encodeWithSignature("InvalidBlockRange(uint64,uint64,uint64)", 1, 10, 5));
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+        _commitCanonicalSyscoinBatch(batch, abi.encodeWithSelector(InvalidBlockRange.selector, 1, 10, 5));
     }
 
     function test_RevertWhen_L2TimestampTooBig() public {
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0));
-        bytes32 daCommitment = bytes32(0);
+        CommitBatchInfoZKsyncOS memory batch = _canonicalSyscoinBatch();
+        batch.lastBlockTimestamp = uint64(block.timestamp + 365 days);
 
-        CommitBatchInfoZKsyncOS memory futureTimestampBatch = newCommitBatchInfoZKsyncOS;
-        futureTimestampBatch.operatorDAInput = operatorDAInput;
-        futureTimestampBatch.daCommitment = daCommitment;
-        futureTimestampBatch.daCommitmentScheme = L2DACommitmentScheme.EMPTY_NO_DA;
-        // Set lastBlockTimestamp far in the future
-        futureTimestampBatch.lastBlockTimestamp = uint64(block.timestamp + 365 days);
-
-        CommitBatchInfoZKsyncOS[] memory batchArray = new CommitBatchInfoZKsyncOS[](1);
-        batchArray[0] = futureTimestampBatch;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, batchArray);
-
-        address validiumL1DAValidator = address(new ValidiumL1DAValidator());
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(validiumL1DAValidator, L2DACommitmentScheme.EMPTY_NO_DA);
-
-        vm.prank(validator);
-        vm.expectRevert(abi.encodeWithSignature("L2TimestampTooBig()"));
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+        _commitCanonicalSyscoinBatch(batch, abi.encodeWithSelector(L2TimestampTooBig.selector));
     }
 
     function test_RevertWhen_TimeNotReached() public {
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0));
-        bytes32 daCommitment = bytes32(0);
+        CommitBatchInfoZKsyncOS memory batch = _canonicalSyscoinBatch();
+        batch.firstBlockTimestamp = 1;
 
-        CommitBatchInfoZKsyncOS memory pastTimestampBatch = newCommitBatchInfoZKsyncOS;
-        pastTimestampBatch.operatorDAInput = operatorDAInput;
-        pastTimestampBatch.daCommitment = daCommitment;
-        pastTimestampBatch.daCommitmentScheme = L2DACommitmentScheme.EMPTY_NO_DA;
-        // Set firstBlockTimestamp far in the past
-        pastTimestampBatch.firstBlockTimestamp = 1;
-
-        CommitBatchInfoZKsyncOS[] memory batchArray = new CommitBatchInfoZKsyncOS[](1);
-        batchArray[0] = pastTimestampBatch;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, batchArray);
-
-        address validiumL1DAValidator = address(new ValidiumL1DAValidator());
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(validiumL1DAValidator, L2DACommitmentScheme.EMPTY_NO_DA);
-
-        vm.prank(validator);
-        vm.expectRevert(); // TimeNotReached error
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+        _commitCanonicalSyscoinBatch(
+            batch,
+            abi.encodeWithSelector(TimeNotReached.selector, 1, block.timestamp - TESTNET_COMMIT_TIMESTAMP_NOT_OLDER)
+        );
     }
 
-    /// @notice Reverts when the batch-level `firstBlockTimestamp` exceeds `lastBlockTimestamp`.
-    /// @dev Both timestamps stay inside the [block.timestamp - NOT_OLDER, block.timestamp + DELTA] window
-    ///      so that the earlier `TimeNotReached` and `L2TimestampTooBig` checks do not trigger first.
+    /// @notice Reverts when the batch-level first timestamp exceeds its last timestamp.
+    /// @dev Both timestamps remain inside the accepted time window so the ordering check is reached.
     function test_RevertWhen_FirstBlockTimestampGreaterThanLastBlockTimestamp() public {
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0));
-        bytes32 daCommitment = bytes32(0);
+        CommitBatchInfoZKsyncOS memory batch = _canonicalSyscoinBatch();
+        batch.firstBlockTimestamp = uint64(currentTimestamp);
+        batch.lastBlockTimestamp = uint64(currentTimestamp - 1);
 
-        CommitBatchInfoZKsyncOS memory invertedTimestampBatch = newCommitBatchInfoZKsyncOS;
-        invertedTimestampBatch.operatorDAInput = operatorDAInput;
-        invertedTimestampBatch.daCommitment = daCommitment;
-        invertedTimestampBatch.daCommitmentScheme = L2DACommitmentScheme.EMPTY_NO_DA;
-        // firstBlockTimestamp > lastBlockTimestamp triggers the new invariant.
-        invertedTimestampBatch.firstBlockTimestamp = uint64(currentTimestamp);
-        invertedTimestampBatch.lastBlockTimestamp = uint64(currentTimestamp - 1);
-
-        CommitBatchInfoZKsyncOS[] memory batchArray = new CommitBatchInfoZKsyncOS[](1);
-        batchArray[0] = invertedTimestampBatch;
-
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, batchArray);
-
-        address validiumL1DAValidator = address(new ValidiumL1DAValidator());
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(validiumL1DAValidator, L2DACommitmentScheme.EMPTY_NO_DA);
-
-        vm.prank(validator);
-        vm.expectRevert(abi.encodeWithSignature("BatchTimestampGreaterThanLastL2BlockTimestamp()"));
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+        _commitCanonicalSyscoinBatch(
+            batch,
+            abi.encodeWithSelector(BatchTimestampGreaterThanLastL2BlockTimestamp.selector)
+        );
     }
 
-    /// @notice Boundary case: `firstBlockTimestamp == lastBlockTimestamp` must still commit successfully,
-    ///         because the guard uses a strict `>` comparison.
+    /// @notice The strict timestamp-order guard permits equal first and last timestamps.
     function test_SuccessfullyCommit_WhenFirstEqualsLastBlockTimestamp() public {
-        bytes memory operatorDAInput = abi.encodePacked(bytes32(0));
-        bytes32 daCommitment = bytes32(0);
+        CommitBatchInfoZKsyncOS memory batch = _canonicalSyscoinBatch();
+        uint64 equalTimestamp = uint64(currentTimestamp - 5);
+        batch.firstBlockTimestamp = equalTimestamp;
+        batch.lastBlockTimestamp = equalTimestamp;
 
-        CommitBatchInfoZKsyncOS memory equalTimestampBatch = newCommitBatchInfoZKsyncOS;
-        equalTimestampBatch.operatorDAInput = operatorDAInput;
-        equalTimestampBatch.daCommitment = daCommitment;
-        equalTimestampBatch.daCommitmentScheme = L2DACommitmentScheme.EMPTY_NO_DA;
-        // Pick a value strictly inside the valid window and set both bounds equal.
-        uint64 equalTs = uint64(currentTimestamp - 5);
-        equalTimestampBatch.firstBlockTimestamp = equalTs;
-        equalTimestampBatch.lastBlockTimestamp = equalTs;
+        _commitCanonicalSyscoinBatch(batch, "");
+    }
 
-        CommitBatchInfoZKsyncOS[] memory batchArray = new CommitBatchInfoZKsyncOS[](1);
-        batchArray[0] = equalTimestampBatch;
+    function _syscoinEdgeDARefsInput(
+        uint256 _edgeChainId,
+        uint256 _edgeBatchNumber,
+        bytes memory _refs
+    ) internal pure returns (bytes memory input, bytes32 root, bytes32 commitment) {
+        commitment = keccak256(_refs);
+        input = abi.encode(uint8(1), _edgeChainId, _edgeBatchNumber, commitment, _refs);
+        bytes32 refHash = keccak256(
+            abi.encodePacked(
+                SYSCOIN_EDGE_DA_REFS_DOMAIN,
+                _edgeChainId,
+                _edgeBatchNumber,
+                commitment,
+                _refs.length / 32,
+                _refs
+            )
+        );
+        root = keccak256(abi.encodePacked(bytes32(0), refHash));
+    }
 
-        (uint256 commitBatchFrom, uint256 commitBatchTo, bytes memory commitData) = Utils
-            .encodeCommitBatchesDataZKsyncOS(genesisStoredBatchInfo, batchArray);
+    function _commitSyscoinWithEdgeRefs(bytes memory _input, bytes32 _root, bytes memory _expectedRevert) internal {
+        CommitBatchInfoZKsyncOS memory batch = _canonicalSyscoinBatch();
+        batch.edgeDARefsInput = _input;
+        batch.edgeDARefsRoot = _root;
+        _commitCanonicalSyscoinBatch(batch, _expectedRevert);
+    }
 
-        address validiumL1DAValidator = address(new ValidiumL1DAValidator());
-        vm.prank(address(owner));
-        admin.setDAValidatorPair(validiumL1DAValidator, L2DACommitmentScheme.EMPTY_NO_DA);
+    function _splitSyscoinEdgeDARefs(
+        uint256 _firstCount,
+        uint256 _secondCount
+    ) internal view returns (bytes memory input, bytes32 root) {
+        bytes memory firstRefs = new bytes(_firstCount * 32);
+        bytes memory secondRefs = new bytes(_secondCount * 32);
+        (bytes memory firstInput, , bytes32 firstCommitment) = _syscoinEdgeDARefsInput(l2ChainId, 7, firstRefs);
+        (bytes memory secondInput, , bytes32 secondCommitment) = _syscoinEdgeDARefsInput(l2ChainId + 1, 8, secondRefs);
+        input = abi.encodePacked(firstInput, secondInput);
 
-        vm.prank(validator);
-        committer.commitBatchesSharedBridge(address(0), commitBatchFrom, commitBatchTo, commitData);
+        bytes32 firstRefHash = keccak256(
+            abi.encodePacked(
+                SYSCOIN_EDGE_DA_REFS_DOMAIN,
+                l2ChainId,
+                uint256(7),
+                firstCommitment,
+                _firstCount,
+                firstRefs
+            )
+        );
+        bytes32 secondRefHash = keccak256(
+            abi.encodePacked(
+                SYSCOIN_EDGE_DA_REFS_DOMAIN,
+                l2ChainId + 1,
+                uint256(8),
+                secondCommitment,
+                _secondCount,
+                secondRefs
+            )
+        );
+        root = keccak256(abi.encodePacked(keccak256(abi.encodePacked(bytes32(0), firstRefHash)), secondRefHash));
+    }
+
+    function test_SyscoinEdgeDARefsCommitAndBindFinalV8BatchOutput() public {
+        vm.etch(SYSCOIN_BITCOIN_DA_PRECOMPILE, address(new SyscoinBitcoinDAEcho()).code);
+        bytes memory refs = abi.encodePacked(bytes32(uint256(11)), bytes32(uint256(22)));
+        (bytes memory input, bytes32 root, ) = _syscoinEdgeDARefsInput(l2ChainId, 7, refs);
+
+        vm.recordLogs();
+        _commitSyscoinWithEdgeRefs(input, root, "");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        bytes32 expectedCommitment = keccak256(
+            abi.encodePacked(
+                newCommitBatchInfoZKsyncOS.firstBlockTimestamp,
+                newCommitBatchInfoZKsyncOS.lastBlockTimestamp,
+                uint256(SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME),
+                keccak256(abi.encodePacked(SYSCOIN_TEST_BATCH_DA_REF)),
+                newCommitBatchInfoZKsyncOS.numberOfLayer1Txs,
+                newCommitBatchInfoZKsyncOS.numberOfLayer2Txs,
+                newCommitBatchInfoZKsyncOS.priorityOperationsHash,
+                newCommitBatchInfoZKsyncOS.l2LogsTreeRoot,
+                bytes32(0),
+                newCommitBatchInfoZKsyncOS.dependencyRootsRollingHash,
+                block.chainid,
+                root
+            )
+        );
+
+        bytes32 signature = keccak256("BlockCommit(uint256,bytes32,bytes32)");
+        bool found;
+        for (uint256 i = 0; i < logs.length; ++i) {
+            if (logs[i].emitter == address(committer) && logs[i].topics.length == 4 && logs[i].topics[0] == signature) {
+                assertEq(logs[i].topics[3], expectedCommitment);
+                found = true;
+            }
+        }
+        assertTrue(found, "BlockCommit not found");
+    }
+
+    function test_SyscoinEdgeDARefsAcceptExactAggregateLimitSplitAcrossMessages() public {
+        vm.etch(SYSCOIN_BITCOIN_DA_PRECOMPILE, address(new SyscoinBitcoinDAEcho()).code);
+        (bytes memory input, bytes32 root) = _splitSyscoinEdgeDARefs(16, 16);
+
+        _commitSyscoinWithEdgeRefs(input, root, "");
+    }
+
+    function test_RevertWhenSyscoinEdgeDARefsExceedAggregateLimitAcrossMessages() public {
+        (bytes memory input, bytes32 root) = _splitSyscoinEdgeDARefs(16, 17);
+        uint256 secondMessageOffset = abi
+            .encode(uint8(1), l2ChainId, uint256(7), bytes32(0), new bytes(16 * 32))
+            .length;
+
+        _commitSyscoinWithEdgeRefs(
+            input,
+            root,
+            abi.encodeWithSelector(SyscoinEdgeDARefInputMalformed.selector, secondMessageOffset)
+        );
+    }
+
+    function test_RevertWhenSingleSyscoinEdgeDARefMessageExceedsLimit() public {
+        bytes memory refs = new bytes(33 * 32);
+        (bytes memory input, bytes32 root, ) = _syscoinEdgeDARefsInput(l2ChainId, 7, refs);
+
+        _commitSyscoinWithEdgeRefs(input, root, abi.encodeWithSelector(SyscoinEdgeDARefInputMalformed.selector, 0));
+    }
+
+    function test_SyscoinEdgeDARefsEmptyInputAndZeroRootRemainValid() public {
+        _commitSyscoinWithEdgeRefs("", bytes32(0), "");
+    }
+
+    function test_RevertWhenSyscoinEdgeDARefsInputMalformed() public {
+        _commitSyscoinWithEdgeRefs(
+            hex"1234",
+            bytes32(0),
+            abi.encodeWithSelector(SyscoinEdgeDARefInputMalformed.selector, 0)
+        );
+    }
+
+    function test_RevertWhenSyscoinEdgeDARefsEmptyButRootNonzero() public {
+        bytes32 root = keccak256("nonzero");
+        _commitSyscoinWithEdgeRefs(
+            "",
+            root,
+            abi.encodeWithSelector(SyscoinEdgeDARefsRootMismatch.selector, root, bytes32(0))
+        );
+    }
+
+    function test_RevertWhenSyscoinEdgeDARefsRootDoesNotOpen() public {
+        vm.etch(SYSCOIN_BITCOIN_DA_PRECOMPILE, address(new SyscoinBitcoinDAEcho()).code);
+        bytes memory refsA = abi.encodePacked(bytes32(uint256(11)));
+        bytes memory refsB = abi.encodePacked(bytes32(uint256(22)));
+        (, bytes32 rootA, ) = _syscoinEdgeDARefsInput(l2ChainId, 7, refsA);
+        (bytes memory inputB, bytes32 rootB, ) = _syscoinEdgeDARefsInput(l2ChainId, 7, refsB);
+
+        _commitSyscoinWithEdgeRefs(
+            inputB,
+            rootA,
+            abi.encodeWithSelector(SyscoinEdgeDARefsRootMismatch.selector, rootA, rootB)
+        );
+    }
+
+    function test_RevertWhenSyscoinEdgeDAEmbeddedCommitmentDoesNotMatchRefs() public {
+        bytes memory refs = abi.encodePacked(bytes32(uint256(11)));
+        (bytes memory input, bytes32 root, bytes32 actualCommitment) = _syscoinEdgeDARefsInput(l2ChainId, 7, refs);
+        bytes32 embeddedCommitment = keccak256("wrong");
+        assembly {
+            mstore(add(input, 0x80), embeddedCommitment)
+        }
+
+        _commitSyscoinWithEdgeRefs(
+            input,
+            root,
+            abi.encodeWithSelector(SyscoinEdgeDACommitmentMismatch.selector, embeddedCommitment, actualCommitment)
+        );
+    }
+
+    function test_RevertWhenSyscoinBitcoinDAPrecompileReverts() public {
+        vm.etch(SYSCOIN_BITCOIN_DA_PRECOMPILE, address(new SyscoinBitcoinDARevert()).code);
+        bytes32 dataHash = bytes32(uint256(11));
+        (bytes memory input, bytes32 root, ) = _syscoinEdgeDARefsInput(l2ChainId, 7, abi.encodePacked(dataHash));
+        _commitSyscoinWithEdgeRefs(
+            input,
+            root,
+            abi.encodeWithSelector(SyscoinEdgeDAPrecompileCallFailed.selector, dataHash)
+        );
+    }
+
+    function test_RevertWhenSyscoinBitcoinDAReturnIsEmpty() public {
+        vm.etch(SYSCOIN_BITCOIN_DA_PRECOMPILE, address(new SyscoinBitcoinDAEmpty()).code);
+        bytes32 dataHash = bytes32(uint256(11));
+        (bytes memory input, bytes32 root, ) = _syscoinEdgeDARefsInput(l2ChainId, 7, abi.encodePacked(dataHash));
+        _commitSyscoinWithEdgeRefs(input, root, abi.encodeWithSelector(SyscoinEdgeDANotAvailable.selector, dataHash));
+    }
+
+    function test_RevertWhenSyscoinBitcoinDAReturnDoesNotEchoRawHash() public {
+        vm.etch(SYSCOIN_BITCOIN_DA_PRECOMPILE, address(new SyscoinBitcoinDAWrong()).code);
+        bytes32 dataHash = bytes32(uint256(11));
+        (bytes memory input, bytes32 root, ) = _syscoinEdgeDARefsInput(l2ChainId, 7, abi.encodePacked(dataHash));
+        _commitSyscoinWithEdgeRefs(input, root, abi.encodeWithSelector(SyscoinEdgeDANotAvailable.selector, dataHash));
     }
 }

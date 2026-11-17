@@ -33,6 +33,7 @@ import {
     L2_NATIVE_TOKEN_VAULT_ADDR,
     L2_SYSTEM_CONTEXT_SYSTEM_CONTRACT
 } from "contracts/common/l2-helpers/L2ContractInterfaces.sol";
+import {PRIORITY_TX_MAX_GAS_LIMIT} from "contracts/common/PriorityGasLimits.sol"; // SYSCOIN: Separate priority and upgrade gas budgets.
 import {ETH_TOKEN_ADDRESS} from "contracts/common/Config.sol";
 
 import {AddressAliasHelper} from "contracts/vendor/AddressAliasHelper.sol";
@@ -303,7 +304,7 @@ abstract contract SharedL2ContractDeployer is UtilsCallMockerTest, DeployIntegra
                 mintValue: 1 ether,
                 l2Value: 10,
                 l2Calldata: hex"",
-                l2GasLimit: 72_000_000,
+                l2GasLimit: PRIORITY_TX_MAX_GAS_LIMIT, // SYSCOIN: Deployment is ordinary priority work.
                 l2GasPerPubdataByteLimit: 800,
                 factoryDeps: deps,
                 refundRecipient: address(0)

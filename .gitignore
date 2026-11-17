@@ -29,6 +29,8 @@ l1-contracts/out/*
 l1-contracts/zkout/*
 l1-contracts/broadcast/*
 l1-contracts/script-config/*
+# SYSCOIN: track the exact V32 compact Edge-DA relay deployment manifest.
+!l1-contracts/script-config/syscoin-edge-da-relay-v1.json
 l1-contracts/snapshots/*
 !l1-contracts/script-config/artifacts
 !l1-contracts/script-config/v31-bridged-tokens.toml

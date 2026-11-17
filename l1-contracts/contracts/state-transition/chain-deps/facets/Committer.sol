@@ -16,6 +16,16 @@ import {
     TESTNET_COMMIT_TIMESTAMP_NOT_OLDER,
     DEFAULT_PRECOMMITMENT_FOR_THE_LAST_BATCH
 } from "../../../common/Config.sol";
+// SYSCOIN: Compact Bitcoin-DA relay parsing uses a dedicated, consensus-pinned parameter set.
+import {
+    SYSCOIN_RELAYED_EDGE_DA_VALIDATOR_VERSION,
+    SYSCOIN_EDGE_DA_REFS_DOMAIN,
+    SYSCOIN_BITCOIN_DA_PRECOMPILE,
+    SYSCOIN_BITCOIN_DA_PRECOMPILE_GAS,
+    SYSCOIN_EDGE_DA_REF_HEAD_BYTES,
+    SYSCOIN_DA_REFERENCE_SIZE,
+    SYSCOIN_DA_MAX_REFS_PER_BATCH
+} from "../../../common/SyscoinConfig.sol";
 import {
     IExecutor,
     L2_LOG_ADDRESS_OFFSET,
@@ -69,12 +79,20 @@ import {
     UnexpectedSystemLog,
     UpgradeBatchNumberIsNotZero,
     ValueMismatch,
-    NonZeroBlobToVerifyZKsyncOS,
     InvalidBlockRange,
     InvalidTxCountInPriorityMode,
     ZKsyncOSPrecommitsNotSupported
 } from "../../../common/L1ContractErrors.sol";
-import {MismatchL2DACommitmentScheme, SettlementLayerChainIdMismatch} from "../../L1StateTransitionErrors.sol";
+// SYSCOIN: Surface precise compact edge-DA failures instead of generic blob errors.
+import {
+    MismatchL2DACommitmentScheme,
+    SettlementLayerChainIdMismatch,
+    SyscoinEdgeDACommitmentMismatch,
+    SyscoinEdgeDANotAvailable,
+    SyscoinEdgeDAPrecompileCallFailed,
+    SyscoinEdgeDARefInputMalformed,
+    SyscoinEdgeDARefsRootMismatch
+} from "../../L1StateTransitionErrors.sol";
 
 // While formally the following import is not used, it is needed to inherit documentation from it
 import {IZKChainBase} from "../../chain-interfaces/IZKChainBase.sol";
@@ -405,6 +423,163 @@ contract CommitterFacet is ZKChainBase, ICommitter {
         }
     }
 
+    // SYSCOIN: Verify each compact reference through the raw Syscoin NEVM availability precompile.
+    function _verifySyscoinBitcoinDA(bytes32 _dataHash) internal {
+        // SYSCOIN: The fixed consensus precompile requires raw calldata. This
+        // bounded call runs inside the already-stateful commit path and every
+        // failure or malformed response is rejected explicitly.
+        (bool success, bytes memory result) = SYSCOIN_BITCOIN_DA_PRECOMPILE.call{
+            gas: SYSCOIN_BITCOIN_DA_PRECOMPILE_GAS
+        }(abi.encodePacked(_dataHash));
+
+        if (!success) {
+            revert SyscoinEdgeDAPrecompileCallFailed(_dataHash);
+        }
+        if (result.length != SYSCOIN_DA_REFERENCE_SIZE) {
+            revert SyscoinEdgeDANotAvailable(_dataHash);
+        }
+
+        bytes32 returnedHash;
+        assembly {
+            returnedHash := mload(add(result, 0x20))
+        }
+        if (returnedHash != _dataHash) {
+            revert SyscoinEdgeDANotAvailable(_dataHash);
+        }
+    }
+
+    // SYSCOIN: Parse and hash the canonical relay envelope without changing the upstream batch ABI encoding rules.
+    function _readSyscoinEdgeDARefWord(bytes memory _input, uint256 _offset) internal pure returns (uint256) {
+        (bytes32 word, ) = UnsafeBytes.readBytes32(_input, _offset);
+        return uint256(word);
+    }
+
+    function _copySyscoinBytes(
+        bytes memory _dest,
+        uint256 _destOffset,
+        bytes memory _src,
+        uint256 _srcOffset,
+        uint256 _length
+    ) internal pure {
+        assembly ("memory-safe") {
+            mcopy(add(add(_dest, 0x20), _destOffset), add(add(_src, 0x20), _srcOffset), _length)
+        }
+    }
+
+    function _keccakSyscoinBytes(
+        bytes memory _input,
+        uint256 _offset,
+        uint256 _length
+    ) internal pure returns (bytes32 result) {
+        assembly ("memory-safe") {
+            result := keccak256(add(add(_input, 0x20), _offset), _length)
+        }
+    }
+
+    // SYSCOIN: Domain-separate each relay message before folding it into the ordered batch root.
+    function _syscoinEdgeDARefHash(
+        bytes memory _input,
+        uint256 _messageOffset,
+        uint256 _hashesStart,
+        uint256 _hashesLength
+    ) internal pure returns (bytes32) {
+        bytes memory preimage = new bytes(SYSCOIN_EDGE_DA_REFS_DOMAIN.length + 32 * 4 + _hashesLength);
+        uint256 preimageOffset;
+
+        _copySyscoinBytes({
+            _dest: preimage,
+            _destOffset: preimageOffset,
+            _src: SYSCOIN_EDGE_DA_REFS_DOMAIN,
+            _srcOffset: 0,
+            _length: SYSCOIN_EDGE_DA_REFS_DOMAIN.length
+        });
+        preimageOffset += SYSCOIN_EDGE_DA_REFS_DOMAIN.length;
+        _copySyscoinBytes({
+            _dest: preimage,
+            _destOffset: preimageOffset,
+            _src: _input,
+            _srcOffset: _messageOffset + 32,
+            _length: 32 * 3
+        });
+        preimageOffset += 32 * 3;
+
+        assembly ("memory-safe") {
+            mstore(add(add(preimage, 0x20), preimageOffset), div(_hashesLength, 32))
+        }
+        preimageOffset += 32;
+        _copySyscoinBytes({
+            _dest: preimage,
+            _destOffset: preimageOffset,
+            _src: _input,
+            _srcOffset: _hashesStart,
+            _length: _hashesLength
+        });
+
+        return keccak256(preimage);
+    }
+
+    // SYSCOIN: Fully open, bound, and availability-check every relayed edge reference on final settlement.
+    function _verifySyscoinEdgeDARefs(bytes memory _input, bytes32 _expectedRoot) internal {
+        bytes32 root;
+        uint256 offset;
+        // SYSCOIN: Cap the aggregate final-L1 Bitcoin-DA openings as well as each relayed
+        // message; otherwise many individually valid child batches could make one Gateway
+        // batch exceed the consensus 32-opening budget.
+        uint256 totalRefs;
+
+        // SYSCOIN: Length is immutable for this in-memory parser; caching it adds enough stack pressure to
+        // break the non-IR production build.
+        // solhint-disable-next-line gas-length-in-loops
+        while (offset < _input.length) {
+            if (_input.length - offset < SYSCOIN_EDGE_DA_REF_HEAD_BYTES + 32) {
+                revert SyscoinEdgeDARefInputMalformed(offset);
+            }
+
+            uint256 version = _readSyscoinEdgeDARefWord(_input, offset);
+            uint256 hashesOffset = _readSyscoinEdgeDARefWord(_input, offset + 128);
+            uint256 hashesLength = _readSyscoinEdgeDARefWord(_input, offset + 160);
+            if (
+                version != SYSCOIN_RELAYED_EDGE_DA_VALIDATOR_VERSION ||
+                hashesOffset != SYSCOIN_EDGE_DA_REF_HEAD_BYTES ||
+                hashesLength == 0 ||
+                hashesLength % SYSCOIN_DA_REFERENCE_SIZE != 0 ||
+                hashesLength / SYSCOIN_DA_REFERENCE_SIZE > SYSCOIN_DA_MAX_REFS_PER_BATCH
+            ) {
+                revert SyscoinEdgeDARefInputMalformed(offset);
+            }
+            totalRefs += hashesLength / SYSCOIN_DA_REFERENCE_SIZE;
+            if (totalRefs > SYSCOIN_DA_MAX_REFS_PER_BATCH) {
+                revert SyscoinEdgeDARefInputMalformed(offset);
+            }
+
+            uint256 hashesStart = offset + SYSCOIN_EDGE_DA_REF_HEAD_BYTES + 32;
+            uint256 hashesEnd = hashesStart + hashesLength;
+            if (hashesEnd > _input.length) {
+                revert SyscoinEdgeDARefInputMalformed(offset);
+            }
+
+            bytes32 embeddedCommitment = bytes32(_readSyscoinEdgeDARefWord(_input, offset + 96));
+            bytes32 actualCommitment = _keccakSyscoinBytes(_input, hashesStart, hashesLength);
+            if (embeddedCommitment != actualCommitment) {
+                revert SyscoinEdgeDACommitmentMismatch(embeddedCommitment, actualCommitment);
+            }
+
+            bytes32 refHash = _syscoinEdgeDARefHash(_input, offset, hashesStart, hashesLength);
+            root = keccak256(abi.encodePacked(root, refHash));
+
+            for (uint256 hashOffset = hashesStart; hashOffset < hashesEnd; hashOffset += SYSCOIN_DA_REFERENCE_SIZE) {
+                (bytes32 dataHash, ) = UnsafeBytes.readBytes32(_input, hashOffset);
+                _verifySyscoinBitcoinDA(dataHash);
+            }
+
+            offset = hashesEnd;
+        }
+
+        if (root != _expectedRoot) {
+            revert SyscoinEdgeDARefsRootMismatch(_expectedRoot, root);
+        }
+    }
+
     function _commitOneBatchZKsyncOS(
         IExecutor.StoredBatchInfo memory _previousBatch,
         CommitBatchInfoZKsyncOS memory _newBatch,
@@ -417,40 +592,24 @@ contract CommitterFacet is ZKChainBase, ICommitter {
 
         // Preventing stack too deep error
         {
-            // we can just ignore l1 da validator output with ZKsync OS:
-            // - used state diffs hash correctness verified within state transition program
-            // - blob commitments/linear hashes verification not supported, we use different way and custom DA validator for blobs with ZKsync OS
+            // SYSCOIN: The canonical validator verifies compact Bitcoin-DA references directly.
+            // State-diff correctness is proven by the state transition, and no KZG arrays are accepted.
             L1DAValidatorOutput memory daOutput = IL1DAValidator(s.l1DAValidator).checkDA({
                 _chainId: s.chainId,
                 _batchNumber: uint256(_newBatch.batchNumber),
                 _l2DAValidatorOutputHash: _newBatch.daCommitment,
                 _operatorDAInput: _newBatch.operatorDAInput,
-                _maxBlobsSupported: TOTAL_BLOBS_IN_COMMITMENT
+                // SYSCOIN: Compact DA has its own reference bound; keep the upstream blob constant unchanged.
+                _maxBlobsSupported: SYSCOIN_DA_MAX_REFS_PER_BATCH
             });
 
-            // Theoretically, we can just ignore it, all the DA validators, except `RollupL1DAValidator`, always return a 0 array,
-            // and `RollupL1DAValidator` will fail if we try to submit blobs with ZKsync OS, so it also returns zeroes here.
-            // However, we are double-checking that the L1 DA validator doesn't rely on "EraVM like" blobs verification, just in case.
-            if (
-                daOutput.blobsLinearHashes.length != daOutput.blobsOpeningCommitments.length ||
-                (daOutput.blobsLinearHashes.length != 0 &&
-                    daOutput.blobsLinearHashes.length != TOTAL_BLOBS_IN_COMMITMENT)
-            ) {
+            // SYSCOIN: compact DA must never smuggle upstream KZG blob arrays into zkOS settlement.
+            if (daOutput.blobsLinearHashes.length != 0 || daOutput.blobsOpeningCommitments.length != 0) {
                 revert InvalidNumberOfBlobs(
-                    TOTAL_BLOBS_IN_COMMITMENT,
+                    0,
                     daOutput.blobsOpeningCommitments.length,
                     daOutput.blobsLinearHashes.length
                 );
-            }
-            uint256 blobsNumber = daOutput.blobsLinearHashes.length;
-            for (uint256 i = 0; i < blobsNumber; ++i) {
-                if (daOutput.blobsLinearHashes[i] != bytes32(0) || daOutput.blobsOpeningCommitments[i] != bytes32(0)) {
-                    revert NonZeroBlobToVerifyZKsyncOS(
-                        i,
-                        daOutput.blobsLinearHashes[i],
-                        daOutput.blobsOpeningCommitments[i]
-                    );
-                }
             }
         }
 
@@ -478,6 +637,9 @@ contract CommitterFacet is ZKChainBase, ICommitter {
             revert SettlementLayerChainIdMismatch();
         }
 
+        // SYSCOIN: Final settlement revalidates the Gateway-collected root and every referenced hash.
+        _verifySyscoinEdgeDARefs(_newBatch.edgeDARefsInput, _newBatch.edgeDARefsRoot);
+
         // The batch proof public input can be calculated as
         // keccak256(state_commitment_before & state_commitment_after & chain_config & batch_output_hash),
         // where chain_config is the chain id and the runtime chain config words (see `_getBatchProofPublicInputZKsyncOS`).
@@ -495,7 +657,9 @@ contract CommitterFacet is ZKChainBase, ICommitter {
                 _newBatch.l2LogsTreeRoot,
                 _expectedSystemContractUpgradeTxHash,
                 _newBatch.dependencyRootsRollingHash,
-                _newBatch.slChainId
+                _newBatch.slChainId,
+                // SYSCOIN: Bind the proven batch output to the ordered compact edge-DA root.
+                _newBatch.edgeDARefsRoot
             )
         );
 

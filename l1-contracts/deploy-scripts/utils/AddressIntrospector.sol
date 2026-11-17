@@ -242,7 +242,8 @@ library AddressIntrospector {
 
         Facets memory facets = _getFacetsFromUptoDateZkChain(ctm);
         address verifier = _getVerifierFromUptoDateZkChain(ctm);
-        // V29 verifier is a dual verifier, but the sub-verifier getters were added in V31
+        // SYSCOIN: V29 predates the shared getter surface. Current zkOS exposes its retained
+        // dormant FFLONK artifact and active PLONK verifier at the canonical V8 slot.
         (address verifierFflonk, address verifierPlonk) = isV29
             ? (address(0), address(0))
             : _getSubVerifiers(verifier, isZKsyncOS);
@@ -504,9 +505,9 @@ library AddressIntrospector {
         return address(0);
     }
 
-    /// @notice Get fflonk and plonk sub-verifiers from a dual verifier
+    /// @notice SYSCOIN: Get the shared verifier implementation slots.
     /// @param _verifier The verifier address
-    /// @param _isZKsyncOS If true, uses ZKsyncOSDualVerifier interface; otherwise EraDualVerifier
+    /// @param _isZKsyncOS If true, returns the canonical zkOS V8 pair; otherwise returns Era's pair.
     function _getSubVerifiers(
         address _verifier,
         bool _isZKsyncOS

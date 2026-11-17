@@ -9,7 +9,7 @@ interface IDeployL2Contracts {
     /// @param _chainId The chain ID for the L2 deployment
     /// @param _governance The governance address
     /// @param _consensusRegistryOwner The consensus registry owner address
-    /// @param _daValidatorType The DA validator type (0=Rollup, 1=NoDA, 2=Avail)
+    /// @param _daValidatorType SYSCOIN: Reserved for ABI compatibility; must be zero.
     function run(
         address _bridgehub,
         uint256 _chainId,
@@ -23,7 +23,7 @@ interface IDeployL2Contracts {
     /// @param _chainId The chain ID for the L2 deployment
     /// @param _governance The governance address
     /// @param _consensusRegistryOwner The consensus registry owner address
-    /// @param _daValidatorType The DA validator type (0=Rollup, 1=NoDA, 2=Avail)
+    /// @param _daValidatorType SYSCOIN: Reserved for ABI compatibility; must be zero.
     function runWithLegacyBridge(
         address _bridgehub,
         uint256 _chainId,
@@ -41,7 +41,7 @@ interface IDeployL2Contracts {
     /// @param _chainId The chain ID for the L2 deployment
     /// @param _governance The governance address
     /// @param _consensusRegistryOwner The consensus registry owner address
-    /// @param _daValidatorType The DA validator type (0=Rollup, 1=NoDA, 2=Avail)
+    /// @param _daValidatorType SYSCOIN: Reserved for ABI compatibility; must be zero.
     function runDefaultUpgrader(
         address _bridgehub,
         uint256 _chainId,
@@ -55,7 +55,7 @@ interface IDeployL2Contracts {
     /// @param _chainId The chain ID for the L2 deployment
     /// @param _governance The governance address
     /// @param _consensusRegistryOwner The consensus registry owner address
-    /// @param _daValidatorType The DA validator type (0=Rollup, 1=NoDA, 2=Avail)
+    /// @param _daValidatorType SYSCOIN: Reserved for ABI compatibility; must be zero.
     function runDeployConsensusRegistry(
         address _bridgehub,
         uint256 _chainId,
@@ -69,7 +69,7 @@ interface IDeployL2Contracts {
     /// @param _chainId The chain ID for the L2 deployment
     /// @param _governance The governance address
     /// @param _consensusRegistryOwner The consensus registry owner address
-    /// @param _daValidatorType The DA validator type (0=Rollup, 1=NoDA, 2=Avail)
+    /// @param _daValidatorType SYSCOIN: Reserved for ABI compatibility; must be zero.
     function runDeployMulticall3(
         address _bridgehub,
         uint256 _chainId,
@@ -83,7 +83,7 @@ interface IDeployL2Contracts {
     /// @param _chainId The chain ID for the L2 deployment
     /// @param _governance The governance address
     /// @param _consensusRegistryOwner The consensus registry owner address
-    /// @param _daValidatorType The DA validator type (0=Rollup, 1=NoDA, 2=Avail)
+    /// @param _daValidatorType SYSCOIN: Reserved for ABI compatibility; must be zero.
     function runDeployTimestampAsserter(
         address _bridgehub,
         uint256 _chainId,

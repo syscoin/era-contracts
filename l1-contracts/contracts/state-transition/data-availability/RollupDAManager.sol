@@ -54,11 +54,12 @@ contract RollupDAManager is Ownable2Step {
     /// - The `l1DAValidator` must be valid address (non-zero).
     /// - The `l2DACommitmentScheme` must be valid scheme (not NONE).
     /// - Only the owner of the contract can call this function.
+    /// @dev SYSCOIN: Virtual dispatch lets the compact manager enforce its immutable single-pair policy.
     function updateDAPair(
         address _l1DAValidator,
         L2DACommitmentScheme _l2DACommitmentScheme,
         bool _status
-    ) external onlyOwner validDAConfiguration(_l1DAValidator, _l2DACommitmentScheme) {
+    ) external virtual onlyOwner validDAConfiguration(_l1DAValidator, _l2DACommitmentScheme) {
         isAllowedDAConfiguration[_l1DAValidator][_l2DACommitmentScheme] = _status;
 
         emit DAPairUpdated(_l1DAValidator, _l2DACommitmentScheme, _status);

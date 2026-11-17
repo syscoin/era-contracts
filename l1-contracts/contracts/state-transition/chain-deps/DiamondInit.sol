@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 
 import {Diamond} from "../libraries/Diamond.sol";
 import {ZKChainBase} from "./facets/ZKChainBase.sol";
+import {DEFAULT_PRIORITY_TX_MAX_GAS_LIMIT} from "../../common/PriorityGasLimits.sol"; // SYSCOIN: Separate priority and upgrade gas budgets.
 import {
     DEFAULT_PRECOMMITMENT_FOR_THE_LAST_BATCH,
     L2_TO_L1_LOG_SERIALIZE_SIZE,
@@ -12,8 +13,7 @@ import {
     DEFAULT_MAX_L2_GAS_PER_BATCH,
     DEFAULT_PRIORITY_TX_MAX_PUBDATA,
     DEFAULT_MINIMAL_L2_GAS_PRICE,
-    DEFAULT_PUBDATA_PRICING_MODE,
-    DEFAULT_PRIORITY_TX_MAX_GAS_LIMIT
+    DEFAULT_PUBDATA_PRICING_MODE
 } from "../../common/Config.sol";
 import {IDiamondInit, InitializeData} from "../chain-interfaces/IDiamondInit.sol";
 import {IVerifier} from "../chain-interfaces/IVerifier.sol";

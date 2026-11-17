@@ -14,8 +14,7 @@ import {L2ContractHelper} from "contracts/common/l2-helpers/L2ContractHelper.sol
 import {L2_INTEROP_CENTER_ADDR} from "contracts/common/l2-helpers/L2ContractAddresses.sol";
 import {Utils} from "../utils/Utils.sol";
 
-import {L2DACommitmentScheme, ROLLUP_L2_DA_COMMITMENT_SCHEME} from "contracts/common/Config.sol";
-
+// SYSCOIN: upstream selectable DA-scheme imports are intentionally absent.
 import {ProxyAdmin} from "@openzeppelin/contracts-v4/proxy/transparent/ProxyAdmin.sol";
 import {Governance} from "contracts/governance/Governance.sol";
 import {ChainAdmin} from "contracts/governance/ChainAdmin.sol";
@@ -43,8 +42,7 @@ import {ZKsyncOSChainTypeManager} from "contracts/state-transition/ZKsyncOSChain
 import {EraChainTypeManager} from "contracts/state-transition/EraChainTypeManager.sol";
 import {ChainTypeManagerBase} from "contracts/state-transition/ChainTypeManagerBase.sol";
 
-import {ValidiumL1DAValidator} from "contracts/state-transition/data-availability/ValidiumL1DAValidator.sol";
-import {RollupDAManager} from "contracts/state-transition/data-availability/RollupDAManager.sol";
+// SYSCOIN: legacy Rollup/Validium manager implementations are not deployed by this release.
 import {BytecodesSupplier} from "contracts/upgrades/BytecodesSupplier.sol";
 import {ServerNotifier} from "contracts/governance/ServerNotifier.sol";
 
@@ -87,8 +85,7 @@ struct ContractsConfig {
     uint256 governanceMinDelay;
     bytes diamondCutData;
     uint256 maxNumberOfChains;
-    // questionable
-    address availL1DAValidator;
+    // SYSCOIN: the legacy Avail validator configuration field is intentionally absent.
     ChainCreationParamsConfig chainCreationParams;
 }
 
@@ -108,8 +105,10 @@ abstract contract DeployCTMUtils is DeployUtils {
     // This variable is initialized by concrete implementations before use
     CoreDeployedAddresses internal coreAddresses; //slither-disable-line uninitialized-state
 
+    // SYSCOIN: Keep this script hook virtual so the V31-to-V32 regression harness can bound
+    // artifact-parsing memory without replacing any production facet bytecode or constructor data.
     //slither-disable-next-line reentrancy-benign
-    function deployStateTransitionDiamondFacets() internal {
+    function deployStateTransitionDiamondFacets() internal virtual {
         ctmAddresses.stateTransition.facets.executorFacet = deploySimpleContract("ExecutorFacet", false);
         ctmAddresses.stateTransition.facets.adminFacet = deploySimpleContract("AdminFacet", false);
         ctmAddresses.stateTransition.facets.mailboxFacet = deploySimpleContract("MailboxFacet", false);
@@ -156,10 +155,7 @@ abstract contract DeployCTMUtils is DeployUtils {
             "$.contracts.validator_timelock_execution_delay"
         );
         config.contracts.chainCreationParams = getChainCreationParamsConfig(Utils.genesisConfigPath(config.isZKsyncOS));
-
-        if (vm.keyExistsToml(toml, "$.contracts.avail_l1_da_validator")) {
-            config.contracts.availL1DAValidator = toml.readAddress("$.contracts.avail_l1_da_validator");
-        }
+        // SYSCOIN: no legacy external-DA address is accepted from deployment TOML.
     }
 
     function getChainCreationParamsConfig(
@@ -292,29 +288,21 @@ abstract contract DeployCTMUtils is DeployUtils {
         return ContractsBytecodesLib.getL2Bytecode(contractName, config.isZKsyncOS);
     }
 
-    function getRollupL2DACommitmentScheme() internal returns (L2DACommitmentScheme) {
-        return ROLLUP_L2_DA_COMMITMENT_SCHEME;
-    }
-
     function getCreationCalldata(
         string memory contractName,
         bool isZKBytecode
     ) internal view virtual override returns (bytes memory) {
+        // SYSCOIN: only the canonical compact DA constructor paths below replace the removed legacy variants.
         if (compareStrings(contractName, "BridgedStandardERC20")) {
             return abi.encode();
         } else if (compareStrings(contractName, "EIP7702Checker")) {
             return abi.encode();
-        } else if (compareStrings(contractName, "RollupDAManager")) {
-            return abi.encode();
-        } else if (compareStrings(contractName, "RollupL1DAValidator")) {
+        } else if (compareStrings(contractName, "SyscoinRollupDAManager")) {
             return abi.encode(ctmAddresses.daAddresses.daContracts.rollupSLDAValidator);
-        } else if (compareStrings(contractName, "ValidiumL1DAValidator")) {
-            return abi.encode();
-        } else if (compareStrings(contractName, "AvailL1DAValidator")) {
-            return abi.encode(ctmAddresses.daAddresses.availBridge);
-        } else if (compareStrings(contractName, "DummyAvailBridge")) {
+        } else if (compareStrings(contractName, "SyscoinL1DAValidatorZKsyncOS")) {
             return abi.encode();
         } else if (
+            // SYSCOIN: zkOS retains the pinned-upstream dormant FFLONK deployment surface.
             compareStrings(contractName, "EraVerifierFflonk") || compareStrings(contractName, "ZKsyncOSVerifierFflonk")
         ) {
             return abi.encode();
@@ -392,10 +380,9 @@ abstract contract DeployCTMUtils is DeployUtils {
                 eip7702Checker: ctmAddresses.admin.eip7702Checker,
                 verifierFflonk: ctmAddresses.stateTransition.verifiers.verifierFflonk,
                 verifierPlonk: ctmAddresses.stateTransition.verifiers.verifierPlonk,
-                // For L1 deployment we need to use the deployer as the owner of the verifier,
-                // because we set the dual verifier later. Use getBroadcasterAddress() to get
-                // the actual EOA when this is called from a contract created via `new` during the script.
-                verifierOwner: getBroadcasterAddress(),
+                // SYSCOIN: fresh zkOS wrappers are born under governance. A two-step handoff
+                // would otherwise leave governance only as pending owner with no accept call.
+                verifierOwner: ctmAddresses.admin.governance,
                 permissionlessValidator: ctmAddresses.stateTransition.proxies.permissionlessValidator
             });
     }

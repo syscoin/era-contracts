@@ -1,3 +1,7 @@
+use circuit_definitions::snark_wrapper::franklin_crypto::bellman::pairing::bn256::Fr;
+use circuit_definitions::snark_wrapper::franklin_crypto::bellman::pairing::ff::{
+    Field, PrimeField, PrimeFieldRepr,
+};
 use handlebars::Handlebars;
 use serde_json::json;
 
@@ -78,6 +82,10 @@ pub fn insert_residue_elements_and_commitments(
     vk_hash: &str,
     contract_name: &str,
 ) -> Result<String, Box<dyn Error>> {
+    let (domain_size, domain_size_log, omega) = domain_parameters(vk)?;
+    let mut omega_bytes = Vec::new();
+    omega.into_repr().write_be(&mut omega_bytes)?;
+    let omega_hex = hex::encode(omega_bytes);
     let reg = Handlebars::new();
     let residue_g2_elements = generate_residue_g2_elements(vk);
     let commitments = generate_commitments(vk);
@@ -94,8 +102,34 @@ pub fn insert_residue_elements_and_commitments(
         &json!({"residue_g2_elements": residue_g2_elements,
                         "commitments": commitments,
                         "vk_hash": vk_hash,
+                        "omega": format!("0x{}", omega_hex.trim_start_matches('0')),
+                        "domain_size": format!("0x{:x}", domain_size),
+                        "domain_size_log": domain_size_log,
                         "contract_name": contract_name}),
     )?)
+}
+
+// SYSCOIN: the PLONK key stores n = domain_size - 1. Security100 uses 2^25,
+// so the verifier must derive its domain from the key instead of assuming 2^24.
+fn domain_parameters(vk: &HashMap<String, Value>) -> Result<(u64, u32, Fr), Box<dyn Error>> {
+    let n = vk
+        .get("n")
+        .and_then(Value::as_u64)
+        .ok_or("PLONK VK n must be an unsigned integer")?;
+    let domain_size = n.checked_add(1).ok_or("PLONK VK n overflows domain size")?;
+    if domain_size < 2 || !domain_size.is_power_of_two() {
+        return Err("PLONK VK n + 1 must be a power of two greater than one".into());
+    }
+    let domain_size_log = domain_size.trailing_zeros();
+    if domain_size_log > Fr::S {
+        return Err("PLONK VK domain exceeds the scalar field two-adicity".into());
+    }
+    // Match the pinned native verifier's radix-two domain construction.
+    let mut omega = Fr::root_of_unity();
+    for _ in domain_size_log..Fr::S {
+        omega.square();
+    }
+    Ok((domain_size, domain_size_log, omega))
 }
 
 fn extract_commitment_slots(items: &[Value], slot_tuple: CommitmentSlot) -> String {
@@ -243,4 +277,92 @@ fn generate_residue_g2_elements(vk: &HashMap<String, Value>) -> String {
     ));
 
     residue_g2_elements
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(n: Value) -> HashMap<String, Value> {
+        HashMap::from([("n".to_string(), n)])
+    }
+
+    fn omega_hex(omega: Fr) -> String {
+        let mut bytes = Vec::new();
+        omega.into_repr().write_be(&mut bytes).unwrap();
+        format!("0x{}", hex::encode(bytes).trim_start_matches('0'))
+    }
+
+    #[test]
+    fn legacy_2p24_domain_is_unchanged() {
+        let (size, log, omega) = domain_parameters(&key(json!((1u64 << 24) - 1))).unwrap();
+        assert_eq!((size, log), (1 << 24, 24));
+        assert_eq!(
+            omega_hex(omega),
+            "0x1951441010b2b95a6e47a6075066a50a036f5ba978c050f2821df86636c0facb"
+        );
+        let template = include_str!("../data/plonk_verifier_contract_template.txt");
+        let mut vk: HashMap<String, Value> =
+            serde_json::from_str(include_str!("../data/ZKsyncOS_plonk_scheduler_key.json"))
+                .unwrap();
+        vk.insert("n".to_string(), json!((1u64 << 24) - 1));
+        let legacy_template = template
+            .replace(
+                "{{omega}}",
+                "0x1951441010b2b95a6e47a6075066a50a036f5ba978c050f2821df86636c0facb",
+            )
+            .replace("{{domain_size}}", "0x1000000")
+            .replace("{{domain_size_log}}", "24");
+        assert_eq!(
+            insert_residue_elements_and_commitments(template, &vk, "test-hash", "ZKsyncOS")
+                .unwrap(),
+            insert_residue_elements_and_commitments(&legacy_template, &vk, "test-hash", "ZKsyncOS")
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn security100_2p25_domain_matches_native_field() {
+        let (size, log, omega) = domain_parameters(&key(json!((1u64 << 25) - 1))).unwrap();
+        assert_eq!((size, log), (1 << 25, 25));
+        // Independently: 7^((r-1)/2^25) mod the BN256 scalar field modulus.
+        assert_eq!(
+            omega_hex(omega),
+            "0xd94d63997367c97a8ed16c17adaae39262b9af83acb9e003f94c217303dd160"
+        );
+        assert_eq!(omega.pow(&[size]), Fr::one());
+        assert_ne!(omega.pow(&[size / 2]), Fr::one());
+    }
+
+    #[test]
+    fn invalid_domain_sizes_are_rejected() {
+        for n in [
+            json!(0),
+            json!(2),
+            json!(u64::MAX),
+            json!((1u64 << (Fr::S + 1)) - 1),
+            json!(-1),
+            json!(3.5),
+            json!(true),
+            json!("16777215"),
+            Value::Null,
+        ] {
+            assert!(
+                domain_parameters(&key(n.clone())).is_err(),
+                "accepted invalid n: {}",
+                n
+            );
+        }
+        assert!(domain_parameters(&HashMap::new()).is_err());
+    }
+
+    #[test]
+    fn scalar_field_boundary_domain_is_valid() {
+        let size = 1u64 << Fr::S;
+        let (_, log, omega) = domain_parameters(&key(json!(size - 1))).unwrap();
+        assert_eq!(log, Fr::S);
+        assert_eq!(omega, Fr::root_of_unity());
+        assert_eq!(omega.pow(&[size]), Fr::one());
+        assert_ne!(omega.pow(&[size / 2]), Fr::one());
+    }
 }

@@ -19,6 +19,7 @@ import {CoreDeployedAddresses} from "../../../../deploy-scripts/ecosystem/Deploy
 import {UtilsCallMockerTest} from "foundry-test/l1/unit/concrete/Utils/UtilsCallMocker.t.sol";
 import {CTMDeployedAddresses, Config} from "../../../../deploy-scripts/ctm/DeployCTMUtils.s.sol";
 import {IOwnable} from "contracts/common/interfaces/IOwnable.sol";
+import {ZKsyncOSDualVerifier} from "contracts/state-transition/verifiers/ZKsyncOSDualVerifier.sol";
 
 contract L1ContractDeployer is UtilsCallMockerTest {
     using stdStorage for StdStorage;
@@ -89,6 +90,12 @@ contract L1ContractDeployer is UtilsCallMockerTest {
         );
 
         ecosystemConfig = ctmScript.getConfig();
+
+        // SYSCOIN: the fresh zkOS verifier must be governed immediately; leaving only a
+        // pending owner would strand slot-8 rotation under the deployment broadcaster.
+        ZKsyncOSDualVerifier verifier = ZKsyncOSDualVerifier(ctmAddresses.stateTransition.verifiers.verifier);
+        assertEq(verifier.owner(), ctmAddresses.admin.governance, "verifier owner is not governance");
+        assertEq(verifier.pendingOwner(), address(0), "verifier ownership handoff is incomplete");
 
         // Get bridgehub from the CTM script's discovered addresses
         addresses.bridgehub = L1Bridgehub(ecosystemAddresses.bridgehub.proxies.bridgehub);

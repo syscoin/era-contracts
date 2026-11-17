@@ -24,12 +24,7 @@ contract DeployL2Script is Script, IDeployL2Contracts {
     Config internal config;
     DeployedContracts internal deployed;
 
-    enum DAValidatorType {
-        Rollup,
-        NoDA,
-        Avail
-    }
-
+    // SYSCOIN: The legacy DA selector is not stored; compact Bitcoin DA is the sole deployment mode.
     // solhint-disable-next-line gas-struct-packing
     struct Config {
         uint256 eraChainId;
@@ -39,7 +34,7 @@ contract DeployL2Script is Script, IDeployL2Contracts {
         address governance;
         address erc20BridgeProxy;
         address proposalAuthor;
-        DAValidatorType validatorType;
+        // SYSCOIN: no selectable DA-validator field survives in canonical compact-DA config.
         // The owner of the contract sets the validator/attester weights.
         // Can be the developer multisig wallet on mainnet.
         address consensusRegistryOwner;
@@ -169,14 +164,13 @@ contract DeployL2Script is Script, IDeployL2Contracts {
         address consensusRegistryOwner,
         uint256 daValidatorType
     ) internal {
-        require(daValidatorType < 3, "Invalid DA validator type");
+        // SYSCOIN: Keep the public ABI stable while rejecting legacy NoDA/Avail selector values.
+        require(daValidatorType == 0, "DA validator selector is reserved and must be zero");
 
         config.bridgehubAddress = bridgehubAddress;
         config.governance = governance;
         config.consensusRegistryOwner = consensusRegistryOwner;
         config.chainId = chainId;
-        config.validatorType = DAValidatorType(daValidatorType);
-
         // Use AddressIntrospector to get addresses from deployed contracts
         BridgehubAddresses memory bhAddresses = AddressIntrospector.getBridgehubAddresses(
             IL1Bridgehub(bridgehubAddress)

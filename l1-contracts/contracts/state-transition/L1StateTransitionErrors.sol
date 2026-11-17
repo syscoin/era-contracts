@@ -104,6 +104,17 @@ error ProtocolVersionNotUpToDate(uint256 currentProtocolVersion, uint256 protoco
 error PubdataInputTooSmall(uint256 pubdataInputLength, uint256 totalBlobsCommitmentSize);
 // 0x9044dff9
 error PubdataLengthTooBig(uint256 pubdataLength, uint256 totalBlobSizeBytes);
+// SYSCOIN: Dedicated failures make compact edge-DA parsing and availability checks auditable.
+// 0xe4e9188e
+error SyscoinEdgeDACommitmentMismatch(bytes32 expectedCommitment, bytes32 actualCommitment);
+// 0x076d05e9
+error SyscoinEdgeDANotAvailable(bytes32 dataHash);
+// 0x8e0e8ec8
+error SyscoinEdgeDAPrecompileCallFailed(bytes32 dataHash);
+// 0x74261695
+error SyscoinEdgeDARefInputMalformed(uint256 offset);
+// 0x05dc7af9
+error SyscoinEdgeDARefsRootMismatch(bytes32 expectedRoot, bytes32 actualRoot);
 // 0x89935a14
 error SettlementLayerChainIdMismatch();
 // 0x97f58c80

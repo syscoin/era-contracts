@@ -5,11 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {ProposedUpgrade} from "contracts/upgrades/BaseZkSyncUpgrade.sol";
 import {L2CanonicalTransaction} from "contracts/common/Messaging.sol";
 import {VerifierParams} from "contracts/state-transition/chain-interfaces/IVerifier.sol";
-import {
-    PRIORITY_TX_MAX_GAS_LIMIT,
-    REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
-    SYSTEM_UPGRADE_L2_TX_TYPE
-} from "contracts/common/Config.sol";
+import {UPGRADE_TX_MAX_GAS_LIMIT} from "contracts/common/PriorityGasLimits.sol"; // SYSCOIN: Separate priority and upgrade gas budgets.
+import {REQUIRED_L2_GAS_PRICE_PER_PUBDATA, SYSTEM_UPGRADE_L2_TX_TYPE} from "contracts/common/Config.sol";
 import {
     L2_FORCE_DEPLOYER_ADDR,
     L2_SYSTEM_CONTEXT_SYSTEM_CONTRACT_ADDR
@@ -75,7 +72,7 @@ contract BaseUpgrade is Test {
             txType: SYSTEM_UPGRADE_L2_TX_TYPE,
             from: uint256(uint160(L2_FORCE_DEPLOYER_ADDR)),
             to: uint256(uint160(L2_SYSTEM_CONTEXT_SYSTEM_CONTRACT_ADDR)),
-            gasLimit: PRIORITY_TX_MAX_GAS_LIMIT,
+            gasLimit: UPGRADE_TX_MAX_GAS_LIMIT,
             gasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
             maxFeePerGas: uint256(0),
             maxPriorityFeePerGas: uint256(0),

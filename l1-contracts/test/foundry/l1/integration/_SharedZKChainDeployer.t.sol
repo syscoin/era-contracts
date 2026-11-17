@@ -6,7 +6,9 @@ import {StdStorage, stdStorage} from "forge-std/Test.sol";
 import {L1ContractDeployer} from "./_SharedL1ContractDeployer.t.sol";
 import {RegisterZKChainScript} from "deploy-scripts/ctm/RegisterZKChain.s.sol";
 import {RegisterZKChainConfig as ChainConfig} from "contracts/script-interfaces/IRegisterZKChain.sol";
-import {ETH_TOKEN_ADDRESS, L2DACommitmentScheme} from "contracts/common/Config.sol";
+import {ETH_TOKEN_ADDRESS} from "contracts/common/Config.sol";
+// SYSCOIN: Shared zkOS fixtures bind the canonical compact-DA scheme used by production deployment paths.
+import {SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME} from "contracts/common/SyscoinConfig.sol";
 
 import "@openzeppelin/contracts-v4/utils/Strings.sol";
 import {IZKChain} from "contracts/state-transition/chain-interfaces/IZKChain.sol";
@@ -25,7 +27,7 @@ contract ZKChainDeployer is L1ContractDeployer {
         uint256 zkChainChainId;
         address baseToken;
         uint256 bridgehubCreateNewChainSalt;
-        bool validiumMode;
+        // SYSCOIN: V32 fixtures are rollup-only; the removed validium toggle must not re-enable legacy DA.
         address validatorSenderOperatorEth;
         address validatorSenderOperatorBlobsEth;
         address validatorSenderOperatorProve;
@@ -131,9 +133,10 @@ contract ZKChainDeployer is L1ContractDeployer {
         IZKChain chain = IZKChain(addresses.bridgehub.getZKChain(_chainId));
         address admin = chain.getAdmin();
         vm.startBroadcast(admin);
+        // SYSCOIN: Configure the gateway-facing relay with the compact edge-reference commitment scheme.
         chain.setDAValidatorPair(
             ctmAddresses.daAddresses.daContracts.rollupSLDAValidator,
-            L2DACommitmentScheme.BLOBS_AND_PUBDATA_KECCAK256
+            SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME
         );
         vm.stopBroadcast();
     }
@@ -147,7 +150,6 @@ contract ZKChainDeployer is L1ContractDeployer {
             zkChainChainId: __chainId,
             baseToken: __baseToken,
             bridgehubCreateNewChainSalt: __salt,
-            validiumMode: false,
             validatorSenderOperatorEth: address(0),
             validatorSenderOperatorBlobsEth: address(1),
             validatorSenderOperatorProve: address(2),
@@ -166,13 +168,8 @@ contract ZKChainDeployer is L1ContractDeployer {
         vm.serializeAddress("chain", "base_token_addr", description.baseToken);
         vm.serializeUint("chain", "bridgehub_create_new_chain_salt", description.bridgehubCreateNewChainSalt);
 
-        uint256 validiumMode = 0;
-
-        if (description.validiumMode) {
-            validiumMode = 1;
-        }
-
-        vm.serializeUint("chain", "validium_mode", validiumMode);
+        // SYSCOIN: Keep generated fixture input explicitly fail-closed to validium mode.
+        vm.serializeUint("chain", "validium_mode", 0);
         vm.serializeAddress("chain", "validator_sender_operator_eth", description.validatorSenderOperatorEth);
         vm.serializeAddress(
             "chain",

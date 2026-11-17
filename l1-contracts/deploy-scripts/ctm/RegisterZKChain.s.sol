@@ -212,6 +212,8 @@ contract RegisterZKChainScript is Create2FactoryUtils, IRegisterZKChain {
         config.governanceMinDelay = uint256(toml.readUint("$.chain.governance_min_delay"));
         config.bridgehubCreateNewChainSalt = toml.readUint("$.chain.bridgehub_create_new_chain_salt");
         config.validiumMode = toml.readBool("$.chain.validium_mode");
+        // SYSCOIN: Retain the upstream config tuple shape, but reject its unsupported Validium branch.
+        require(!config.validiumMode, "Syscoin compact DA does not support Validium");
         config.validatorSenderOperatorEth = toml.readAddress("$.chain.validator_sender_operator_eth");
         config.validatorSenderOperatorBlobsEth = toml.readAddress("$.chain.validator_sender_operator_blobs_eth");
 
@@ -506,10 +508,7 @@ contract RegisterZKChainScript is Create2FactoryUtils, IRegisterZKChain {
             config.baseTokenGasPriceMultiplierDenominator
         );
 
-        if (config.validiumMode) {
-            zkChain.setPubdataPricingMode(PubdataPricingMode.Validium);
-        }
-
+        // SYSCOIN: Leave pubdata pricing in Rollup mode; the removed Validium branch is unsupported.
         vm.stopBroadcast();
         console.log("ZkSync State Transition configured");
     }

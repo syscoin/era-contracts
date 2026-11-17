@@ -10,6 +10,7 @@ import {IChainTypeManager} from "../state-transition/IChainTypeManager.sol";
 import {L2ContractHelper} from "../common/l2-helpers/L2ContractHelper.sol";
 import {TransactionValidator} from "../state-transition/libraries/TransactionValidator.sol";
 import {ProposedUpgrade} from "../state-transition/libraries/ProposedUpgradeLib.sol";
+import {UPGRADE_TX_MAX_GAS_LIMIT} from "../common/PriorityGasLimits.sol"; // SYSCOIN: Separate priority and upgrade gas budgets.
 import {MAX_ALLOWED_MINOR_VERSION_DELTA, MAX_NEW_FACTORY_DEPS} from "../common/Config.sol";
 import {L2CanonicalTransaction} from "../common/Messaging.sol";
 import {
@@ -237,7 +238,7 @@ abstract contract BaseZkSyncUpgrade is ZKChainBase {
         TransactionValidator.validateL1ToL2Transaction(
             _l2ProtocolUpgradeTx,
             encodedTransaction,
-            s.priorityTxMaxGasLimit,
+            UPGRADE_TX_MAX_GAS_LIMIT, // SYSCOIN: Disabled/lower user admission must not prevent upgrades.
             s.feeParams.priorityTxMaxPubdata,
             s.zksyncOS
         );

@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {AdminTest} from "./_Admin_Shared.t.sol";
 
-import {ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT, ZKSYNC_OS_MAX_BLOCK_GAS_LIMIT} from "contracts/common/Config.sol";
+import {ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT} from "contracts/common/Config.sol";
 import {
     Unauthorized,
     ZKsyncOSChainConfigUpdateWithUnverifiedBatches,
@@ -32,23 +32,22 @@ contract SetZKsyncOSChainConfigTest is AdminTest {
         adminFacet.setZKsyncOSMaxTxGasLimit(ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT);
     }
 
-    function test_setZKsyncOSMaxTxGasLimit_revertWhen_belowEip7825Floor() public {
+    // SYSCOIN: Consensus fixes the zkOS transaction-gas limit to one canonical value across server and contracts.
+    function testFuzz_setZKsyncOSMaxTxGasLimit_revertWhen_notCanonicalDefault(uint64 newMaxTxGasLimit) public {
+        vm.assume(newMaxTxGasLimit != ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT);
         vm.startPrank(utilsFacet.util_getAdmin());
-        vm.expectRevert(ZKsyncOSMaxTxGasLimitTooLow.selector);
-        adminFacet.setZKsyncOSMaxTxGasLimit(ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT - 1);
+        if (newMaxTxGasLimit < ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT) {
+            vm.expectRevert(ZKsyncOSMaxTxGasLimitTooLow.selector);
+        } else {
+            vm.expectRevert(ZKsyncOSMaxTxGasLimitTooHigh.selector);
+        }
+        adminFacet.setZKsyncOSMaxTxGasLimit(newMaxTxGasLimit);
     }
 
-    function test_setZKsyncOSMaxTxGasLimit_revertWhen_aboveBlockGasLimit() public {
+    function test_setZKsyncOSMaxTxGasLimit_revertWhen_raisedAboveCanonicalDefault() public {
         vm.startPrank(utilsFacet.util_getAdmin());
         vm.expectRevert(ZKsyncOSMaxTxGasLimitTooHigh.selector);
-        adminFacet.setZKsyncOSMaxTxGasLimit(ZKSYNC_OS_MAX_BLOCK_GAS_LIMIT + 1);
-    }
-
-    function test_setZKsyncOSMaxTxGasLimit_acceptsBlockGasLimitCeiling() public {
-        vm.startPrank(utilsFacet.util_getAdmin());
-        adminFacet.setZKsyncOSMaxTxGasLimit(ZKSYNC_OS_MAX_BLOCK_GAS_LIMIT);
-
-        assertEq(utilsFacet.util_getZKsyncOSMaxTxGasLimit(), ZKSYNC_OS_MAX_BLOCK_GAS_LIMIT);
+        adminFacet.setZKsyncOSMaxTxGasLimit(ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT * 2);
     }
 
     function test_setZKsyncOSMaxTxGasLimit_revertWhen_notZKsyncOS() public {
@@ -76,24 +75,18 @@ contract SetZKsyncOSChainConfigTest is AdminTest {
         adminFacet.setZKsyncOSMaxTxGasLimit(ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT);
     }
 
-    function test_setZKsyncOSMaxTxGasLimit_successfulSet() public {
-        uint64 newMaxTxGasLimit = ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT * 2;
-
-        // The old value reported is the effective one: the default, since it was never set.
-        // solhint-disable-next-line func-named-parameters
+    function test_setZKsyncOSMaxTxGasLimit_acceptsCanonicalDefaultIdempotently() public {
+        vm.startPrank(utilsFacet.util_getAdmin());
+        // The effective old value is already the default when the storage slot is unset.
         vm.expectEmit(true, true, true, true, address(adminFacet));
-        emit NewZKsyncOSMaxTxGasLimit(ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT, newMaxTxGasLimit);
-
-        vm.startPrank(utilsFacet.util_getAdmin());
-        adminFacet.setZKsyncOSMaxTxGasLimit(newMaxTxGasLimit);
-
-        assertEq(utilsFacet.util_getZKsyncOSMaxTxGasLimit(), newMaxTxGasLimit);
-    }
-
-    function test_setZKsyncOSMaxTxGasLimit_acceptsEip7825Floor() public {
-        vm.startPrank(utilsFacet.util_getAdmin());
+        emit NewZKsyncOSMaxTxGasLimit(ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT, ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT);
         adminFacet.setZKsyncOSMaxTxGasLimit(ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT);
+        assertEq(utilsFacet.util_getZKsyncOSMaxTxGasLimit(), ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT);
 
+        // A second call is a true no-op in value terms and preserves the same event semantics.
+        vm.expectEmit(true, true, true, true, address(adminFacet));
+        emit NewZKsyncOSMaxTxGasLimit(ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT, ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT);
+        adminFacet.setZKsyncOSMaxTxGasLimit(ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT);
         assertEq(utilsFacet.util_getZKsyncOSMaxTxGasLimit(), ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT);
     }
 }

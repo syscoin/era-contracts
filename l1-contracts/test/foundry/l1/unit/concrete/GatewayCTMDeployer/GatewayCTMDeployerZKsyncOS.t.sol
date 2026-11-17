@@ -5,11 +5,23 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 
 import {Verifiers} from "contracts/common/StateTransitionTypes.sol";
+import {MockVerifierNotSupported} from "contracts/common/L1ContractErrors.sol";
+import {MAINNET_CHAIN_ID} from "contracts/common/Config.sol";
+import {SYSCOIN_MAINNET_CHAIN_ID} from "contracts/common/SyscoinConfig.sol";
+import {
+    SYSCOIN_EDGE_DA_RELAY_ADDRESS,
+    SYSCOIN_EDGE_DA_RELAY_RUNTIME_HASH
+} from "contracts/common/SyscoinEdgeDARelayDeployment.sol";
+import {IVerifierV2} from "contracts/state-transition/chain-interfaces/IVerifierV2.sol";
+import {IVerifier} from "contracts/state-transition/chain-interfaces/IVerifier.sol";
+import {ZKsyncOSDualVerifier} from "contracts/state-transition/verifiers/ZKsyncOSDualVerifier.sol";
+import {SyscoinRelayedSLDAValidator} from "contracts/state-transition/data-availability/SyscoinRelayedSLDAValidator.sol";
 
 import {DAContracts} from "contracts/common/StateTransitionTypes.sol";
 import {
     DeployedContracts,
     GatewayCTMDeployerConfig,
+    GatewayVerifiersDeployerConfig,
     GatewayProxyAdminDeployerResult,
     GatewayValidatorTimelockDeployerResult,
     GatewayCTMFinalResult
@@ -108,18 +120,27 @@ contract GatewayCTMDeployerTesterZKsyncOS {
 /// @notice Test for GatewayCTMDeployer in ZKsyncOS (EVM) mode
 /// @dev This test verifies that the deployment logic works correctly for standard EVM systems
 contract GatewayCTMDeployerZKsyncOSTest is Test {
+    uint256 internal constant SYSCOIN_TESTNET_L1_CHAIN_ID = 5700;
+    uint256 internal constant SYSCOIN_GATEWAY_CHAIN_ID = 57001;
+
     GatewayCTMDeployerConfig deployerConfig;
 
     function setUp() external {
+        // SYSCOIN: exercise constructors under the same chain identity used by Gateway on both networks.
+        vm.chainId(SYSCOIN_GATEWAY_CHAIN_ID);
+
         // Deploy the deterministic CREATE2 factory at the expected address
         vm.etch(Utils.DETERMINISTIC_CREATE2_ADDRESS, Utils.CREATE2_FACTORY_RUNTIME_BYTECODE);
+        // SYSCOIN: Mirror the canonical genesis installation that must precede Gateway conversion.
+        vm.etch(SYSCOIN_EDGE_DA_RELAY_ADDRESS, type(SyscoinRelayedSLDAValidator).runtimeCode);
+        assertEq(SYSCOIN_EDGE_DA_RELAY_ADDRESS.codehash, SYSCOIN_EDGE_DA_RELAY_RUNTIME_HASH);
 
         // Initialize the configuration with sample data for ZKsyncOS mode
         GatewayCTMDeployerConfig memory config = GatewayCTMDeployerConfig({
             aliasedGovernanceAddress: address(0x123),
             salt: keccak256("test-salt"),
             eraChainId: 1001,
-            l1ChainId: 1,
+            l1ChainId: SYSCOIN_TESTNET_L1_CHAIN_ID,
             testnetVerifier: true,
             isZKsyncOS: true, // ZKsyncOS mode enabled
             adminSelectors: new bytes4[](2),
@@ -196,6 +217,98 @@ contract GatewayCTMDeployerZKsyncOSTest is Test {
         DeployedContractsComparator.compareDeployedContracts(calculatedContracts, actualContracts);
     }
 
+    /// @notice Proves the production Gateway branch deploys only the governed canonical PLONK route.
+    function testGatewayVerifierDeployerZKsyncOSProductionRoute() external {
+        // SYSCOIN: production roots remain valid when the production wrapper is selected.
+        Verifiers memory result = _deployVerifierResult(false, SYSCOIN_MAINNET_CHAIN_ID);
+        ZKsyncOSDualVerifier wrapper = ZKsyncOSDualVerifier(result.verifier);
+
+        _assertCanonicalVerifierResult(result, wrapper);
+        assertFalse(wrapper.IS_TESTNET_VERIFIER(), "production wrapper must reject fake proofs");
+
+        uint256[] memory publicInputs = new uint256[](1);
+        publicInputs[0] = 123;
+
+        uint256[] memory proof = new uint256[](4);
+        proof[0] = uint256(3) | (uint256(8) << 8);
+        proof[1] = 0;
+        proof[2] = 13;
+        proof[3] = wrapper.computeZKsyncOSHash(0, publicInputs);
+
+        vm.expectRevert(MockVerifierNotSupported.selector);
+        wrapper.verify(publicInputs, proof);
+    }
+
+    /// @notice Proves that fake proofs remain available only through an explicit Gateway testnet selection.
+    function testGatewayVerifierDeployerZKsyncOSExplicitTestnetRoute() external {
+        Verifiers memory result = _deployVerifierResult(true, SYSCOIN_TESTNET_L1_CHAIN_ID);
+        ZKsyncOSDualVerifier wrapper = ZKsyncOSDualVerifier(result.verifier);
+
+        _assertCanonicalVerifierResult(result, wrapper);
+        assertTrue(wrapper.IS_TESTNET_VERIFIER(), "explicit testnet wrapper must report fake-proof mode");
+
+        uint256[] memory publicInputs = new uint256[](1);
+        publicInputs[0] = 123;
+
+        uint256[] memory proof = new uint256[](4);
+        proof[0] = uint256(3) | (uint256(8) << 8);
+        proof[1] = 0;
+        proof[2] = 13;
+        proof[3] = wrapper.computeZKsyncOSHash(0, publicInputs);
+
+        assertTrue(wrapper.verify(publicInputs, proof), "explicit testnet wrapper must accept a bound fake proof");
+    }
+
+    // SYSCOIN: an explicit mock selection on Gateway must still fail for either supported production root L1.
+    function testGatewayVerifierDeployerZKsyncOSRejectsSyscoinMainnetRootForTestnetRoute() external {
+        vm.expectRevert();
+        _deployVerifierDeployer(true, SYSCOIN_MAINNET_CHAIN_ID);
+    }
+
+    function testGatewayVerifierDeployerZKsyncOSRejectsEthereumMainnetRootForTestnetRoute() external {
+        vm.expectRevert();
+        _deployVerifierDeployer(true, MAINNET_CHAIN_ID);
+    }
+
+    function _deployVerifierResult(
+        bool _testnetVerifier,
+        uint256 _l1ChainId
+    ) internal returns (Verifiers memory result) {
+        GatewayCTMDeployerVerifiersZKsyncOS verifierDeployer = _deployVerifierDeployer(_testnetVerifier, _l1ChainId);
+        result = verifierDeployer.getResult();
+    }
+
+    function _deployVerifierDeployer(
+        bool _testnetVerifier,
+        uint256 _l1ChainId
+    ) internal returns (GatewayCTMDeployerVerifiersZKsyncOS verifierDeployer) {
+        GatewayVerifiersDeployerConfig memory verifierConfig = GatewayVerifiersDeployerConfig({
+            salt: deployerConfig.salt,
+            aliasedGovernanceAddress: deployerConfig.aliasedGovernanceAddress,
+            testnetVerifier: _testnetVerifier,
+            isZKsyncOS: true
+        });
+        verifierDeployer = new GatewayCTMDeployerVerifiersZKsyncOS(verifierConfig, _l1ChainId);
+    }
+
+    function _assertCanonicalVerifierResult(Verifiers memory result, ZKsyncOSDualVerifier wrapper) internal view {
+        // SYSCOIN: Gateway retains the dormant upstream FFLONK deployment, while only PLONK is proof-routed.
+        assertTrue(result.verifierFflonk != address(0), "zkOS FFLONK compatibility artifact must be deployed");
+        assertTrue(result.verifierPlonk != address(0), "zkOS PLONK must be deployed");
+        assertEq(
+            address(wrapper.fflonkVerifiers(8)),
+            address(IVerifierV2(result.verifierFflonk)),
+            "canonical slot 8 must expose the retained FFLONK verifier"
+        );
+        assertEq(
+            address(wrapper.plonkVerifiers(8)),
+            address(IVerifier(result.verifierPlonk)),
+            "canonical slot 8 must reference the deployed PLONK verifier"
+        );
+        assertEq(wrapper.owner(), deployerConfig.aliasedGovernanceAddress, "aliased governance must own wrapper");
+        assertEq(wrapper.pendingOwner(), address(0), "wrapper ownership must be complete");
+    }
+
     function _deployAllDeployers(
         GatewayCTMDeployerTesterZKsyncOS tester,
         DeployerCreate2Calldata memory deployerCalldata,
@@ -222,6 +335,12 @@ contract GatewayCTMDeployerZKsyncOSTest is Test {
         // Verifiers deployer (ZKsyncOS)
         (results.verifiersResult, deployer) = tester.deployVerifiers(deployerCalldata.verifiersCalldata);
         assertEq(deployer, expectedDeployers.verifiersDeployer, "Verifiers deployer address mismatch");
+        // SYSCOIN: expose both pinned-upstream deployment results; consensus still routes only PLONK.
+        assertTrue(
+            results.verifiersResult.verifierFflonk != address(0),
+            "zkOS FFLONK compatibility artifact must be deployed"
+        );
+        assertTrue(results.verifiersResult.verifierPlonk != address(0), "zkOS PLONK must be deployed");
 
         // Deploy direct contracts (facets, etc.)
         _deployDirectContracts(tester, directCalldata, calculatedContracts);

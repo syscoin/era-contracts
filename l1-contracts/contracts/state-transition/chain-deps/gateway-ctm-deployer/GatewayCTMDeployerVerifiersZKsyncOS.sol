@@ -19,7 +19,8 @@ import {GatewayVerifiersDeployerConfig} from "./GatewayCTMDeployer.sol";
 /// @author Matter Labs
 /// @custom:security-contact security@matterlabs.dev
 /// @notice Gateway CTM ZKsyncOS Verifiers deployer: deploys ZKsyncOS verifier contracts.
-/// @dev Deploys: ZKsyncOSVerifierFflonk, ZKsyncOSVerifierPlonk, and ZKsyncOS DualVerifier/TestnetVerifier.
+/// @dev Deploys the pinned-upstream FFLONK compatibility artifact, the active PLONK verifier,
+/// and either the production or explicit testnet wrapper. SYSCOIN: proof routing remains PLONK-only.
 /// For Era verifiers, use GatewayCTMDeployerVerifiers instead.
 /// This contract is expected to be deployed via the built-in L2 `Create2Factory`.
 contract GatewayCTMDeployerVerifiersZKsyncOS {
@@ -31,7 +32,8 @@ contract GatewayCTMDeployerVerifiersZKsyncOS {
         result = deployedResult;
     }
 
-    constructor(GatewayVerifiersDeployerConfig memory _config) {
+    /// @dev SYSCOIN: `_l1ChainId` remains the ultimate base-layer identity when this executes on Gateway.
+    constructor(GatewayVerifiersDeployerConfig memory _config, uint256 _l1ChainId) {
         if (!_config.isZKsyncOS) {
             revert WrongCTMDeployerVariant();
         }
@@ -39,28 +41,29 @@ contract GatewayCTMDeployerVerifiersZKsyncOS {
 
         Verifiers memory result;
 
-        // Deploy ZKsyncOS verifiers
+        // SYSCOIN: retain the pinned-upstream dormant artifact and deployment result for minimal
+        // lineage drift; ZKsyncOSDualVerifier has no proof-type branch that can execute it.
         result.verifierFflonk = address(new ZKsyncOSVerifierFflonk{salt: salt}());
         result.verifierPlonk = address(new ZKsyncOSVerifierPlonk{salt: salt}());
 
-        // Deploy main verifier
-        if (_config.testnetVerifier) {
-            result.verifier = address(
+        // SYSCOIN: production routes only PLONK; today's explicitly configured testnet retains
+        // type-3 fake-proof verification until the real app-bound VK is activated.
+        result.verifier = _config.testnetVerifier
+            ? address(
                 new ZKsyncOSTestnetVerifier{salt: salt}(
                     IVerifierV2(result.verifierFflonk),
                     IVerifier(result.verifierPlonk),
-                    _config.aliasedGovernanceAddress
+                    _config.aliasedGovernanceAddress,
+                    _l1ChainId
                 )
-            );
-        } else {
-            result.verifier = address(
+            )
+            : address(
                 new ZKsyncOSDualVerifier{salt: salt}(
                     IVerifierV2(result.verifierFflonk),
                     IVerifier(result.verifierPlonk),
                     _config.aliasedGovernanceAddress
                 )
             );
-        }
 
         deployedResult = result;
     }

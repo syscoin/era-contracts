@@ -4,10 +4,10 @@ pragma solidity 0.8.28;
 import {Utils} from "../Utils/Utils.sol";
 import {ExecutorTest} from "./_Executor_Shared.t.sol";
 import {IL1DAValidator, L1DAValidatorOutput} from "contracts/state-transition/chain-interfaces/IL1DAValidator.sol";
-import {IExecutor, TOTAL_BLOBS_IN_COMMITMENT} from "contracts/state-transition/chain-interfaces/IExecutor.sol";
 import {CommitBatchInfoZKsyncOS} from "contracts/state-transition/chain-interfaces/ICommitter.sol";
 import {
     InvalidTxCountInPriorityMode,
+    NotCompatibleWithPriorityMode,
     OnlyNormalMode,
     PriorityModeActivationTooEarly,
     PriorityModeIsNotAllowed,
@@ -17,10 +17,77 @@ import {
 } from "contracts/common/L1ContractErrors.sol";
 import {PRIORITY_EXPIRATION, REQUIRED_L2_GAS_PRICE_PER_PUBDATA} from "contracts/common/Config.sol";
 import {L2TransactionRequestDirect} from "contracts/core/bridgehub/IBridgehubBase.sol";
+import {IAdmin} from "contracts/state-transition/chain-interfaces/IAdmin.sol";
+import {IMigrator} from "contracts/state-transition/chain-interfaces/IMigrator.sol";
 
 contract PriorityModeExecutorTest is ExecutorTest {
     function isZKsyncOS() internal pure override returns (bool) {
         return true;
+    }
+
+    // SYSCOIN: A real timestamped request and migration pause must not permit irreversible opt-in.
+    function testFuzz_revertWhen_permanentlyAllowPriorityMode_depositsPaused(uint32 _delay) public {
+        _requestPriorityOp();
+        uint256 queueSize = getters.getPriorityQueueSize();
+        uint256 firstUnprocessed = getters.getFirstUnprocessedPriorityTx();
+        address filterer = getters.getTransactionFilterer();
+        vm.prank(owner);
+        migrator.pauseDepositsBeforeInitiatingMigration();
+        // Cover immediate and long-standing pauses without changing the migration delay.
+        vm.warp(block.timestamp + _delay);
+
+        vm.recordLogs();
+        vm.prank(owner);
+        vm.expectRevert(NotCompatibleWithPriorityMode.selector);
+        admin.permanentlyAllowPriorityMode();
+        assertEq(vm.getRecordedLogs().length, 0, "rejected opt-in must not emit events");
+        assertEq(getters.getPriorityQueueSize(), queueSize, "priority queue must remain unchanged");
+        assertEq(getters.getFirstUnprocessedPriorityTx(), firstUnprocessed);
+        assertEq(getters.getTransactionFilterer(), filterer);
+        vm.expectRevert(PriorityModeIsNotAllowed.selector);
+        admin.activatePriorityMode();
+
+        // A failed opt-in must also retain the pause, and must not prevent the normal recovery flow.
+        vm.expectEmit(address(migrator));
+        emit IMigrator.DepositsUnpaused(l2ChainId);
+        vm.prank(owner);
+        migrator.unpauseDeposits();
+        _requestPriorityOp();
+        assertEq(getters.getPriorityQueueSize(), queueSize + 1);
+        vm.expectEmit(address(admin));
+        emit IAdmin.PriorityModeAllowed();
+        vm.prank(owner);
+        admin.permanentlyAllowPriorityMode();
+    }
+
+    function test_revertWhen_permanentlyAllowPriorityMode_depositsPausedEmptyQueue() public {
+        vm.prank(owner);
+        migrator.pauseDepositsBeforeInitiatingMigration();
+        vm.prank(owner);
+        vm.expectRevert(NotCompatibleWithPriorityMode.selector);
+        admin.permanentlyAllowPriorityMode();
+        assertEq(getters.getPriorityQueueSize(), 0);
+        vm.expectRevert(PriorityModeIsNotAllowed.selector);
+        admin.activatePriorityMode();
+    }
+
+    function test_permanentlyAllowPriorityMode_afterUnpause() public {
+        _requestPriorityOp();
+        vm.prank(owner);
+        migrator.pauseDepositsBeforeInitiatingMigration();
+        vm.prank(owner);
+        migrator.unpauseDeposits();
+
+        vm.expectEmit(address(admin));
+        emit IAdmin.PriorityModeAllowed();
+        vm.prank(owner);
+        admin.permanentlyAllowPriorityMode();
+        vm.expectRevert(PriorityModeRequiresPermanentRollup.selector);
+        admin.activatePriorityMode();
+
+        vm.prank(owner);
+        vm.expectRevert(NotCompatibleWithPriorityMode.selector);
+        migrator.pauseDepositsBeforeInitiatingMigration();
     }
 
     function test_revertWhen_activatePriorityMode_notAllowed() public {
@@ -157,8 +224,9 @@ contract PriorityModeExecutorTest is ExecutorTest {
     }
 
     function _mockDAForCommit(uint256 batchNumber) internal {
-        bytes32[] memory blobHashes = new bytes32[](TOTAL_BLOBS_IN_COMMITMENT);
-        bytes32[] memory blobCommitments = new bytes32[](TOTAL_BLOBS_IN_COMMITMENT);
+        // SYSCOIN: Compact Bitcoin-DA fixtures do not carry Ethereum blob arrays.
+        bytes32[] memory blobHashes = new bytes32[](0);
+        bytes32[] memory blobCommitments = new bytes32[](0);
         L1DAValidatorOutput memory daOutput = L1DAValidatorOutput({
             stateDiffHash: bytes32(0),
             blobsLinearHashes: blobHashes,

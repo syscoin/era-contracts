@@ -211,4 +211,18 @@ interface IAdminFunctions {
         address refundRecipient,
         bool shouldSend
     ) external;
+
+    /// @notice SYSCOIN: Route a transaction to Gateway while retaining the
+    ///         migrated edge chain's L1 administrator as the caller.
+    function adminL1L2TxViaGateway(
+        address bridgehub,
+        uint256 l1GasPrice,
+        uint256 adminChainId,
+        uint256 gatewayChainId,
+        address to,
+        uint256 value,
+        bytes calldata data,
+        address refundRecipient,
+        bool shouldSend
+    ) external;
 }

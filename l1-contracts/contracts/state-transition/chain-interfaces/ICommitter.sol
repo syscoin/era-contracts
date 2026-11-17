@@ -48,6 +48,8 @@ struct CommitBatchInfo {
 /// @param l2LogsTreeRoot Root hash of tree that contains L2 -> L1 messages from this batch
 /// @param daCommitmentScheme commitment scheme used to generate pubdata commitment for this batch
 /// @param daCommitment commitment to the batch pubdata to validate DA in the l1 da validator
+/// @param edgeDARefsInput SYSCOIN: canonical compact edge-DA messages opening edgeDARefsRoot on final L1
+/// @param edgeDARefsRoot SYSCOIN: proven ordered root of compact edge-DA messages collected by Gateway
 // solhint-disable-next-line gas-struct-packing
 struct CommitBatchInfoZKsyncOS {
     uint64 batchNumber;
@@ -65,6 +67,9 @@ struct CommitBatchInfoZKsyncOS {
     uint64 lastBlockNumber;
     uint256 chainId;
     bytes operatorDAInput;
+    // SYSCOIN: Carry the opening and root separately so final settlement can revalidate Gateway relay data.
+    bytes edgeDARefsInput;
+    bytes32 edgeDARefsRoot;
     uint256 slChainId;
 }
 

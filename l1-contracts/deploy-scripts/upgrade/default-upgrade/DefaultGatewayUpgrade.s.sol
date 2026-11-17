@@ -40,6 +40,8 @@ import {BytecodesSupplier} from "contracts/upgrades/BytecodesSupplier.sol";
 
 import {IChainAssetHandlerBase} from "contracts/core/chain-asset-handler/IChainAssetHandler.sol";
 import {RollupDAManager} from "contracts/state-transition/data-availability/RollupDAManager.sol";
+// SYSCOIN: Gateway and direct deployments share the same fixed compact-DA scheme.
+import {SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME} from "contracts/common/SyscoinConfig.sol";
 import {FixedForceDeploymentsData} from "contracts/state-transition/l2-deps/IL2GenesisUpgrade.sol";
 import {L2_CHAIN_ASSET_HANDLER_ADDR} from "contracts/common/l2-helpers/L2ContractAddresses.sol";
 import {IValidatorTimelock} from "contracts/state-transition/validators/interfaces/IValidatorTimelock.sol";
@@ -176,10 +178,12 @@ contract DefaultGatewayUpgrade is Script, DefaultL2UpgradeStrategy {
         config.contracts.validatorTimelockExecutionDelay = IValidatorTimelock(
             ctmDeployedAddresses.stateTransition.proxies.validatorTimelock
         ).executionDelay();
-        (bool ok, bytes memory data) = ctmDeployedAddresses.stateTransition.verifiers.verifier.staticcall(
-            abi.encodeWithSignature("IS_TESTNET_VERIFIER()")
+        // SYSCOIN: preserve generic Era behavior, but require an explicit operator opt-in before
+        // a zkOS upgrade can retain today's fake-proof testnet verifier. Production defaults false.
+        config.testnetVerifier = DeployCTML1OrGateway.resolveTestnetVerifierMode(
+            config.isZKsyncOS,
+            vm.envOr("SYSCOIN_ZKSYNC_OS_MOCK_VERIFIER", false)
         );
-        config.testnetVerifier = true;
         config.contracts.maxNumberOfChains = bridgehub.MAX_NUMBER_OF_ZK_CHAINS();
     }
 
@@ -368,6 +372,8 @@ contract DefaultGatewayUpgrade is Script, DefaultL2UpgradeStrategy {
     function deployNewEcosystemContractsGW() public virtual {
         require(upgradeConfig.initialized, "Not initialized");
 
+        // SYSCOIN: retain the pinned-upstream zkOS FFLONK deployment artifact. The V8 wrapper
+        // exposes the canonical slot for compatibility but proof routing remains PLONK-only.
         gatewayConfig.gatewayStateTransition.verifiers.verifierFflonk = deployGWContract("VerifierFflonk");
         gatewayConfig.gatewayStateTransition.verifiers.verifierPlonk = deployGWContract("VerifierPlonk");
         gatewayConfig.gatewayStateTransition.verifiers.verifier = deployGWContract("Verifier");
@@ -565,9 +571,10 @@ contract DefaultGatewayUpgrade is Script, DefaultL2UpgradeStrategy {
         uint256 l2GasLimit,
         uint256 l1GasPrice
     ) public virtual returns (Call[] memory calls) {
+        // SYSCOIN: do not fall back to the removed upstream DA-scheme selector.
         bytes memory l2Calldata = abi.encodeCall(
             RollupDAManager.updateDAPair,
-            (gatewayConfig.gatewayDA.rollupSLDAValidator, getRollupL2DACommitmentScheme(), true)
+            (gatewayConfig.gatewayDA.rollupSLDAValidator, SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME, true)
         );
 
         calls = _prepareL1ToGatewayCall(l2Calldata, l2GasLimit, l1GasPrice, gatewayConfig.gatewayDA.rollupDAManager);

@@ -10,7 +10,7 @@ import type { DiamondCut, FacetCut } from "./diamondCut";
 import { diamondCut } from "./diamondCut";
 import { SYSTEM_CONFIG, web3Url } from "../scripts/utils";
 import { Wallet as ZkWallet, Provider } from "zksync-ethers";
-import { L2_NATIVE_TOKEN_VAULT_ADDRESS, L1_TO_L2_ALIAS_OFFSET } from "./constants";
+import { L2_NATIVE_TOKEN_VAULT_ADDRESS, L1_TO_L2_ALIAS_OFFSET, PRIORITY_TX_MAX_GAS_LIMIT } from "./constants";
 
 const CREATE2_PREFIX = ethers.utils.solidityKeccak256(["string"], ["zksyncCreate2"]);
 
@@ -225,7 +225,7 @@ function checkValidInitialCutHashParams(
   // We do not fetch the following numbers from the environment because they are very rarely changed
   // and we want to avoid the risk of accidentally changing them.
   const EXPECTED_FACET_CUTS = 4;
-  const EXPECTED_PRIORITY_TX_MAX_GAS_LIMIT = 72_000_000;
+  const EXPECTED_PRIORITY_TX_MAX_GAS_LIMIT = PRIORITY_TX_MAX_GAS_LIMIT;
 
   if (facetCuts.length != EXPECTED_FACET_CUTS) {
     throw new Error(`Expected ${EXPECTED_FACET_CUTS} facet cuts, got ${facetCuts.length}`);

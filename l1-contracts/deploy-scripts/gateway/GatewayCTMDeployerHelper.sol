@@ -28,6 +28,16 @@ import {
 
 import {Utils} from "../utils/Utils.sol";
 import {BytecodeUtils} from "../utils/bytecode/BytecodeUtils.s.sol";
+// SYSCOIN: Bind Gateway address derivation to the reviewed compact-DA relay manifest.
+import {
+    SYSCOIN_EDGE_DA_RELAY_FACTORY,
+    SYSCOIN_EDGE_DA_RELAY_SALT,
+    SYSCOIN_EDGE_DA_RELAY_INIT_CODE_HASH,
+    SYSCOIN_EDGE_DA_RELAY_RUNTIME_HASH,
+    SYSCOIN_EDGE_DA_RELAY_ADDRESS,
+    SyscoinEdgeDARelayArtifactHashMismatch,
+    SyscoinEdgeDARelayAddressMismatch
+} from "contracts/common/SyscoinEdgeDARelayDeployment.sol";
 import {L2ContractHelper} from "contracts/common/l2-helpers/L2ContractHelper.sol";
 import {L2_CREATE2_FACTORY_ADDR} from "contracts/common/l2-helpers/L2ContractAddresses.sol";
 import {CTMContract, CTMCoreDeploymentConfig, DeployCTML1OrGateway} from "../ctm/DeployCTML1OrGateway.sol";
@@ -133,9 +143,10 @@ library GatewayCTMDeployerHelper {
             address create2FactoryAddress
         )
     {
-        // Use Arachnid deterministic CREATE2 by default (GW path),
-        // unless the env override switches to EraVM factory mode.
-        create2FactoryAddress = _getDeploymentTarget(_isGatewayEvmEquivalentInCurrentContext());
+        // SYSCOIN: One baked EVM relay identity cannot have an alternate EraVM derivation.
+        require(config.isZKsyncOS, "Only the canonical Syscoin ZKsync OS Gateway deployment is supported");
+        require(_isGatewayEvmEquivalentInCurrentContext(), "Syscoin Gateway requires the EVM CREATE2 factory");
+        create2FactoryAddress = SYSCOIN_EDGE_DA_RELAY_FACTORY;
         (contracts, deployerCalldata, deployers, directCalldata) = _calculateAddressesInner(_create2Salt, config);
     }
 
@@ -153,6 +164,9 @@ library GatewayCTMDeployerHelper {
     {
         CalculateAddressesIntermediate memory im;
 
+        // SYSCOIN: Genesis already installs the constructorless relay. Reproduce its exact
+        // artifact and frozen CREATE2 identity offline before calculating any dependent address.
+        _validateSyscoinEdgeDARelayArtifact();
         (deployers.daDeployer, deployerCalldata.daCalldata, im.daResult) = _calculateDADeployer(_create2Salt, config);
         (
             deployers.proxyAdminDeployer,
@@ -195,10 +209,42 @@ library GatewayCTMDeployerHelper {
 
     // ============ DA Deployer ============
 
+    /// @dev SYSCOIN: Reproduce the frozen genesis relay artifact/address before calculating
+    /// Gateway deployments. Any compiler, source, import, optimizer, or metadata drift fails.
+    function _validateSyscoinEdgeDARelayArtifact() private {
+        // SYSCOIN: The relay is Prague-genesis; ordinary artifacts retain the deployment EVM target.
+        string memory defaultArtifact = string.concat(
+            Utils.vm.projectRoot(),
+            "/../l1-contracts/out/SyscoinRelayedSLDAValidator.sol/SyscoinRelayedSLDAValidator.json"
+        );
+        string memory artifactPath = Utils.vm.envOr("SYSCOIN_EDGE_DA_RELAY_ARTIFACT", defaultArtifact);
+        string memory artifact = Utils.vm.readFile(artifactPath);
+        bytes memory initCode = Utils.vm.parseJsonBytes(artifact, ".bytecode.object");
+        bytes32 actualInitCodeHash = keccak256(initCode);
+        if (actualInitCodeHash != SYSCOIN_EDGE_DA_RELAY_INIT_CODE_HASH) {
+            revert SyscoinEdgeDARelayArtifactHashMismatch(SYSCOIN_EDGE_DA_RELAY_INIT_CODE_HASH, actualInitCodeHash);
+        }
+
+        bytes memory runtimeCode = Utils.vm.parseJsonBytes(artifact, ".deployedBytecode.object");
+        bytes32 actualRuntimeHash = keccak256(runtimeCode);
+        if (actualRuntimeHash != SYSCOIN_EDGE_DA_RELAY_RUNTIME_HASH) {
+            revert SyscoinEdgeDARelayArtifactHashMismatch(SYSCOIN_EDGE_DA_RELAY_RUNTIME_HASH, actualRuntimeHash);
+        }
+
+        address actualAddress = Utils.getL2AddressViaDeterministicCreate2(SYSCOIN_EDGE_DA_RELAY_SALT, initCode);
+        if (actualAddress != SYSCOIN_EDGE_DA_RELAY_ADDRESS) {
+            revert SyscoinEdgeDARelayAddressMismatch(SYSCOIN_EDGE_DA_RELAY_ADDRESS, actualAddress);
+        }
+        _logGatewayVerifyContract(SYSCOIN_EDGE_DA_RELAY_ADDRESS, "SyscoinRelayedSLDAValidator", hex"");
+    }
+
     function _calculateDADeployer(
         bytes32 _create2Salt,
         GatewayCTMDeployerConfig memory config
     ) internal returns (address deployer, bytes memory data, DAContracts memory result) {
+        // SYSCOIN: compact Gateway DA has no generic Era deployment branch.
+        require(config.isZKsyncOS, "Syscoin compact Gateway DA requires ZKsync OS");
+
         GatewayDADeployerConfig memory daConfig = GatewayDADeployerConfig({
             salt: config.salt,
             aliasedGovernanceAddress: config.aliasedGovernanceAddress
@@ -303,7 +349,11 @@ library GatewayCTMDeployerHelper {
             CTMContract.GatewayCTMDeployerVerifiers
         );
         bytes memory bytecode = BytecodeUtils.readBytecodeL1(config.isZKsyncOS, vdFile, vdName);
-        bytes memory constructorArgs = abi.encode(verifiersConfig);
+        // SYSCOIN: the zkOS testnet wrapper must receive the ultimate L1 identity even though
+        // its constructor executes on Gateway. Keep generic Era constructor encoding unchanged.
+        bytes memory constructorArgs = config.isZKsyncOS
+            ? abi.encode(verifiersConfig, config.l1ChainId)
+            : abi.encode(verifiersConfig);
 
         L1L2DeployPrepareResult memory deployResult = _prepareL1L2Deployment(
             true,
@@ -314,7 +364,8 @@ library GatewayCTMDeployerHelper {
         deployer = deployResult.expectedAddress;
         data = deployResult.data;
         _logGatewayVerifyContract(deployer, vdName, constructorArgs);
-        result = _calculateVerifiersDeployerAddresses(deployer, verifiersConfig, config.isZKsyncOS);
+        // SYSCOIN: predicted verifier addresses use the same ultimate-L1-aware constructor encoding.
+        result = _calculateVerifiersDeployerAddresses(deployer, verifiersConfig, config.l1ChainId, config.isZKsyncOS);
     }
 
     // ============ Direct Deployments (no deployer) ============
@@ -516,27 +567,19 @@ library GatewayCTMDeployerHelper {
     function _calculateDADeployerAddresses(
         address deployerAddr,
         GatewayDADeployerConfig memory config,
-        bool _isZKsyncOS
+        bool _isEVMBytecode
     ) internal returns (DAContracts memory result) {
         InnerDeployConfig memory innerConfig = InnerDeployConfig({deployerAddr: deployerAddr, salt: config.salt});
 
-        result.rollupDAManager = _deployInternalEmptyParams(
-            "RollupDAManager",
-            "RollupDAManager.sol",
+        // SYSCOIN: the relay is deployed directly through the universal factory; this deployer
+        // creates only the manager and binds it to the exact guest/server-baked address.
+        result.rollupSLDAValidator = SYSCOIN_EDGE_DA_RELAY_ADDRESS;
+        result.rollupDAManager = _deployInternalWithParams(
+            "SyscoinRollupDAManager",
+            "SyscoinRollupDAManager.sol",
+            abi.encode(result.rollupSLDAValidator),
             innerConfig,
-            _isZKsyncOS
-        );
-        result.validiumDAValidator = _deployInternalEmptyParams(
-            "ValidiumL1DAValidator",
-            "ValidiumL1DAValidator.sol",
-            innerConfig,
-            _isZKsyncOS
-        );
-        result.rollupSLDAValidator = _deployInternalEmptyParams(
-            "RelayedSLDAValidator",
-            "RelayedSLDAValidator.sol",
-            innerConfig,
-            _isZKsyncOS
+            _isEVMBytecode
         );
     }
 
@@ -585,10 +628,13 @@ library GatewayCTMDeployerHelper {
     function _calculateVerifiersDeployerAddresses(
         address deployerAddr,
         GatewayVerifiersDeployerConfig memory config,
+        uint256 _l1ChainId,
         bool _isZKsyncOS
     ) internal returns (Verifiers memory result) {
         InnerDeployConfig memory innerConfig = InnerDeployConfig({deployerAddr: deployerAddr, salt: config.salt});
 
+        // SYSCOIN: retain the pinned-upstream zkOS FFLONK artifact and deployment surface.
+        // The V8 verifier wrapper keeps it introspectable but never routes proofs to it.
         {
             (string memory fflonkFile, string memory fflonkName) = DeployCTML1OrGateway.resolve(
                 _isZKsyncOS,
@@ -608,11 +654,14 @@ library GatewayCTMDeployerHelper {
                 _isZKsyncOS,
                 config.testnetVerifier
             );
+            // SYSCOIN: deploy the dormant FFLONK/active PLONK pair into canonical slot 8.
             bytes memory creationArgs = DeployCTML1OrGateway.verifierCreationArgs(
                 _isZKsyncOS,
+                config.testnetVerifier,
                 result.verifierFflonk,
                 result.verifierPlonk,
-                config.aliasedGovernanceAddress
+                config.aliasedGovernanceAddress,
+                _l1ChainId
             );
             result.verifier = _deployInternalWithParams(
                 mainVerifierName,
@@ -777,9 +826,9 @@ library GatewayCTMDeployerHelper {
         DirectDeployedAddresses memory directAddresses,
         GatewayCTMFinalResult memory ctmResult
     ) internal pure returns (DeployedContracts memory contracts) {
+        // SYSCOIN: copy only the compact DA pair; the legacy validium result remains zero.
         // From DA deployer
         contracts.daContracts.rollupDAManager = daResult.rollupDAManager;
-        contracts.daContracts.validiumDAValidator = daResult.validiumDAValidator;
         contracts.daContracts.rollupSLDAValidator = daResult.rollupSLDAValidator;
 
         // From ProxyAdmin deployer
@@ -874,65 +923,10 @@ library GatewayCTMDeployerHelper {
 
     /// @notice Returns all factory dependencies for deployment.
     /// @return dependencies Array of bytecodes needed for deployment.
-    function getListOfFactoryDeps(
-        GatewayCTMDeployerConfig memory config
-    ) external returns (bytes[] memory dependencies) {
-        if (config.isZKsyncOS) {
-            return dependencies;
-        }
-        return _gatewayCTMEraFactoryDependencies();
-    }
-
-    /// @notice Bytecodes required for Gateway CTM deployers on Era.
-    // solhint-disable-next-line code-complexity
-    function _gatewayCTMEraFactoryDependencies() private returns (bytes[] memory dependencies) {
-        uint256 totalDependencies = 27;
-        dependencies = new bytes[](totalDependencies);
-        uint256 idx = 0;
-
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "GatewayCTMDeployerDA.sol", "GatewayCTMDeployerDA");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(
-            false,
-            "GatewayCTMDeployerProxyAdmin.sol",
-            "GatewayCTMDeployerProxyAdmin"
-        );
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(
-            false,
-            "GatewayCTMDeployerValidatorTimelock.sol",
-            "GatewayCTMDeployerValidatorTimelock"
-        );
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(
-            false,
-            "GatewayCTMDeployerVerifiers.sol",
-            "GatewayCTMDeployerVerifiers"
-        );
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "GatewayCTMDeployerCTM.sol", "GatewayCTMDeployerCTM");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "RollupDAManager.sol", "RollupDAManager");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "ValidiumL1DAValidator.sol", "ValidiumL1DAValidator");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "RelayedSLDAValidator.sol", "RelayedSLDAValidator");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "ProxyAdmin.sol", "ProxyAdmin");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "ValidatorTimelock.sol", "ValidatorTimelock");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(
-            false,
-            "TransparentUpgradeableProxy.sol",
-            "TransparentUpgradeableProxy"
-        );
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "EraVerifierFflonk.sol", "EraVerifierFflonk");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "EraVerifierPlonk.sol", "EraVerifierPlonk");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "EraTestnetVerifier.sol", "EraTestnetVerifier");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "EraDualVerifier.sol", "EraDualVerifier");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "ServerNotifier.sol", "ServerNotifier");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "EraChainTypeManager.sol", "EraChainTypeManager");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "Admin.sol", "AdminFacet");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "Mailbox.sol", "MailboxFacet");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "Executor.sol", "ExecutorFacet");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "Getters.sol", "GettersFacet");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "Migrator.sol", "MigratorFacet");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "Committer.sol", "CommitterFacet");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "DiamondInit.sol", "DiamondInit");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "L1GenesisUpgrade.sol", "L1GenesisUpgrade");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "Multicall3.sol", "Multicall3");
-        dependencies[idx++] = BytecodeUtils.readBytecodeL1(false, "DiamondProxy.sol", "DiamondProxy");
+    // SYSCOIN: generic Era factory dependencies are excluded from the canonical zkOS Gateway payload.
+    function getListOfFactoryDeps(GatewayCTMDeployerConfig memory config) external pure returns (bytes[] memory) {
+        require(config.isZKsyncOS, "Only the canonical Syscoin ZKsync OS Gateway deployment is supported");
+        return new bytes[](0);
     }
 
     // ======================== VM-branching utilities ========================

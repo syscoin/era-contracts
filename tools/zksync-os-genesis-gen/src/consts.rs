@@ -89,6 +89,12 @@ pub const CREATE2_FACTORY_RUNTIME_BYTECODE: &[u8] = &hex_literal::hex!(
     "7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
 );
 
+// SYSCOIN: Canonical constructorless compact Edge-DA relay. Installing the reviewed runtime in
+// genesis lets the Gateway authenticate it before sequencing the conversion priority queue.
+pub const SYSCOIN_EDGE_DA_RELAY_ADDRESS: Address = Address(FixedBytes::<20>(hex_literal::hex!(
+    "758b06cDA80BDD016F79AFd0df1A984039067A21"
+)));
+
 // System contracts
 pub const L2_DEPLOYER_SYSTEM_CONTRACT_ADDR: Address = Address(FixedBytes::<20>(hex_literal::hex!(
     "0000000000000000000000000000000000008006"
@@ -134,7 +140,7 @@ const L2_MESSAGE_VERIFICATION: Address = Address(FixedBytes::<20>(hex_literal::h
 /// - `L2_WRAPPED_BASE_TOKEN` – uses its own proxy mechanism.
 /// - `SYSTEM_CONTRACT_PROXY_ADMIN` – the proxy admin itself.
 /// - `DETERMINISTIC_CREATE2_ADDRESS` – standard Create2 factory, not a system contract.
-pub const INITIAL_CONTRACTS: [(Address, ContractDeployment); 22] = [
+pub const INITIAL_CONTRACTS: [(Address, ContractDeployment); 23] = [
     (
         L2_COMPLEX_UPGRADER_ADDR,
         ContractDeployment::SystemProxy(ContractSource::L1ContractName("L2ComplexUpgrader")),
@@ -219,6 +225,14 @@ pub const INITIAL_CONTRACTS: [(Address, ContractDeployment); 22] = [
         DETERMINISTIC_CREATE2_ADDRESS,
         ContractDeployment::Direct(ContractSource::Bytecode(CREATE2_FACTORY_RUNTIME_BYTECODE)),
     ),
+    // SYSCOIN: The relay has no constructor or storage; direct genesis installation at its
+    // frozen CREATE2 address is state-equivalent to the redundant first-boot deployment.
+    (
+        SYSCOIN_EDGE_DA_RELAY_ADDRESS,
+        ContractDeployment::Direct(ContractSource::L1ContractName(
+            "SyscoinRelayedSLDAValidator",
+        )),
+    ),
     (
         L2_INTEROP_ROOT_STORAGE,
         ContractDeployment::SystemProxy(ContractSource::L1ContractName("L2InteropRootStorage")),
@@ -228,3 +242,67 @@ pub const INITIAL_CONTRACTS: [(Address, ContractDeployment); 22] = [
         ContractDeployment::SystemProxy(ContractSource::L1ContractName("L2MessageVerification")),
     ),
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy::primitives::keccak256;
+
+    #[test]
+    fn syscoin_edge_da_relay_is_a_direct_genesis_contract() {
+        let deployment = INITIAL_CONTRACTS
+            .iter()
+            .find_map(|(address, deployment)| {
+                (*address == SYSCOIN_EDGE_DA_RELAY_ADDRESS).then_some(deployment)
+            })
+            .expect("canonical Syscoin Edge-DA relay is missing from genesis");
+
+        assert!(matches!(
+            deployment,
+            ContractDeployment::Direct(ContractSource::L1ContractName(
+                "SyscoinRelayedSLDAValidator"
+            ))
+        ));
+    }
+
+    #[test]
+    fn canonical_genesis_attests_syscoin_edge_da_relay_and_root() {
+        // SYSCOIN: Keep the committed chain-creation root inseparable from the exact relay
+        // runtime. A stale JSON/root pair would let CTM register a state the server cannot boot.
+        let genesis: crate::Genesis = serde_json::from_str(include_str!(
+            "../../../configs/genesis/zksync-os/latest.json"
+        ))
+        .expect("canonical zkOS genesis must decode");
+        assert_eq!(
+            genesis.initial_genesis.initial_contracts.len(),
+            41,
+            "canonical zkOS genesis must contain only the pinned 41 contracts"
+        );
+        let runtime = genesis
+            .initial_genesis
+            .initial_contracts
+            .iter()
+            .find_map(|(address, runtime)| {
+                (*address == SYSCOIN_EDGE_DA_RELAY_ADDRESS).then_some(runtime)
+            })
+            .expect("canonical zkOS genesis is missing the Syscoin Edge-DA relay");
+
+        assert_eq!(
+            keccak256(runtime.as_ref()),
+            B256::from(hex_literal::hex!(
+                "4c86ffe57098cb09a48ee6dfa4f21b2cce8e327409e1da1dc6be4545220b89e0"
+            ))
+        );
+        assert_eq!(
+            genesis.genesis_root,
+            B256::from(hex_literal::hex!(
+                "ec4a6d11ed43e56364b38684633718eea0c3c270849ccef03dfcf2721a2b77fb"
+            ))
+        );
+        assert_eq!(
+            crate::build_genesis_root_hash(&genesis.initial_genesis)
+                .expect("canonical zkOS genesis root must recompute"),
+            genesis.genesis_root
+        );
+    }
+}

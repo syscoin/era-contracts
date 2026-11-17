@@ -5,6 +5,10 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 
 import {Verifiers} from "contracts/common/StateTransitionTypes.sol";
+import {
+    SYSCOIN_EDGE_DA_RELAY_ADDRESS,
+    SYSCOIN_EDGE_DA_RELAY_RUNTIME_HASH
+} from "contracts/common/SyscoinEdgeDARelayDeployment.sol";
 
 import {DAContracts} from "contracts/common/StateTransitionTypes.sol";
 import {
@@ -22,8 +26,8 @@ import {
 import {GatewayCTMDeployerDA} from "contracts/state-transition/chain-deps/gateway-ctm-deployer/GatewayCTMDeployerDA.sol";
 import {GatewayCTMDeployerProxyAdmin} from "contracts/state-transition/chain-deps/gateway-ctm-deployer/GatewayCTMDeployerProxyAdmin.sol";
 import {GatewayCTMDeployerValidatorTimelock} from "contracts/state-transition/chain-deps/gateway-ctm-deployer/GatewayCTMDeployerValidatorTimelock.sol";
-import {GatewayCTMDeployerVerifiers} from "contracts/state-transition/chain-deps/gateway-ctm-deployer/GatewayCTMDeployerVerifiers.sol";
-import {GatewayCTMDeployerCTM} from "contracts/state-transition/chain-deps/gateway-ctm-deployer/GatewayCTMDeployerCTM.sol";
+import {GatewayCTMDeployerVerifiersZKsyncOS} from "contracts/state-transition/chain-deps/gateway-ctm-deployer/GatewayCTMDeployerVerifiersZKsyncOS.sol";
+import {GatewayCTMDeployerCTMZKsyncOS} from "contracts/state-transition/chain-deps/gateway-ctm-deployer/GatewayCTMDeployerCTMZKsyncOS.sol";
 import {IEIP7702Checker} from "contracts/state-transition/chain-interfaces/IEIP7702Checker.sol";
 
 import {ServerNotifier} from "contracts/governance/ServerNotifier.sol";
@@ -36,9 +40,11 @@ import {AdminFacet} from "contracts/state-transition/chain-deps/facets/Admin.sol
 import {MigratorFacet} from "contracts/state-transition/chain-deps/facets/Migrator.sol";
 
 import {RollupDAManager} from "contracts/state-transition/data-availability/RollupDAManager.sol";
-import {RelayedSLDAValidator} from "contracts/state-transition/data-availability/RelayedSLDAValidator.sol";
-import {ValidiumL1DAValidator} from "contracts/state-transition/data-availability/ValidiumL1DAValidator.sol";
+import {SyscoinRelayedSLDAValidator} from "contracts/state-transition/data-availability/SyscoinRelayedSLDAValidator.sol";
+import {SyscoinRollupDAManager} from "contracts/state-transition/data-availability/SyscoinRollupDAManager.sol";
 
+// SYSCOIN: This entire downstream test adaptation covers the attested compact-DA relay and
+// constrained V32 Gateway deployment topology; every divergence in this file is intentional.
 import {EraVerifierFflonk} from "contracts/state-transition/verifiers/EraVerifierFflonk.sol";
 import {EraVerifierPlonk} from "contracts/state-transition/verifiers/EraVerifierPlonk.sol";
 import {EraTestnetVerifier} from "contracts/state-transition/verifiers/EraTestnetVerifier.sol";
@@ -50,11 +56,7 @@ import {L1GenesisUpgrade} from "contracts/upgrades/L1GenesisUpgrade.sol";
 import {ZKsyncOSChainTypeManager} from "contracts/state-transition/ZKsyncOSChainTypeManager.sol";
 import {EraChainTypeManager} from "contracts/state-transition/EraChainTypeManager.sol";
 
-import {
-    L2_BRIDGEHUB_ADDR,
-    L2_CREATE2_FACTORY_ADDR,
-    L2_CHAIN_ASSET_HANDLER_ADDR
-} from "contracts/common/l2-helpers/L2ContractAddresses.sol";
+import {L2_BRIDGEHUB_ADDR, L2_CHAIN_ASSET_HANDLER_ADDR} from "contracts/common/l2-helpers/L2ContractAddresses.sol";
 
 import {ProxyAdmin} from "@openzeppelin/contracts-v4/proxy/transparent/ProxyAdmin.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts-v4/proxy/transparent/TransparentUpgradeableProxy.sol";
@@ -74,67 +76,91 @@ import {
 // We need to use contract the zkfoundry consistently uses
 // zk environment only within a deployed contract
 contract GatewayCTMDeployerTester {
+    function _decodeDeployerAddress(bytes memory returnData) private pure returns (address deployerAddr) {
+        if (returnData.length == 32) {
+            return abi.decode(returnData, (address));
+        }
+        require(returnData.length == 20, "unexpected CREATE2 factory return length");
+        assembly {
+            deployerAddr := shr(96, mload(add(returnData, 0x20)))
+        }
+    }
+
     /// @notice Deploys DA contracts
-    function deployDA(bytes memory data) external returns (DAContracts memory result, address deployerAddr) {
-        (bool success, bytes memory returnData) = L2_CREATE2_FACTORY_ADDR.call(data);
+    function deployDA(
+        address deploymentTarget,
+        bytes memory data
+    ) external returns (DAContracts memory result, address deployerAddr) {
+        (bool success, bytes memory returnData) = deploymentTarget.call(data);
         require(success, "DA deployment failed");
 
-        deployerAddr = abi.decode(returnData, (address));
+        deployerAddr = _decodeDeployerAddress(returnData);
         result = GatewayCTMDeployerDA(deployerAddr).getResult();
     }
 
     /// @notice Deploys ProxyAdmin
     function deployProxyAdmin(
+        address deploymentTarget,
         bytes memory data
     ) external returns (GatewayProxyAdminDeployerResult memory result, address deployerAddr) {
-        (bool success, bytes memory returnData) = L2_CREATE2_FACTORY_ADDR.call(data);
+        (bool success, bytes memory returnData) = deploymentTarget.call(data);
         require(success, "ProxyAdmin deployment failed");
 
-        deployerAddr = abi.decode(returnData, (address));
+        deployerAddr = _decodeDeployerAddress(returnData);
         result = GatewayCTMDeployerProxyAdmin(deployerAddr).getResult();
     }
 
     /// @notice Deploys ValidatorTimelock
     function deployValidatorTimelock(
+        address deploymentTarget,
         bytes memory data
     ) external returns (GatewayValidatorTimelockDeployerResult memory result, address deployerAddr) {
-        (bool success, bytes memory returnData) = L2_CREATE2_FACTORY_ADDR.call(data);
+        (bool success, bytes memory returnData) = deploymentTarget.call(data);
         require(success, "ValidatorTimelock deployment failed");
 
-        deployerAddr = abi.decode(returnData, (address));
+        deployerAddr = _decodeDeployerAddress(returnData);
         result = GatewayCTMDeployerValidatorTimelock(deployerAddr).getResult();
     }
 
     /// @notice Deploys Verifiers
-    function deployVerifiers(bytes memory data) external returns (Verifiers memory result, address deployerAddr) {
-        (bool success, bytes memory returnData) = L2_CREATE2_FACTORY_ADDR.call(data);
+    function deployVerifiers(
+        address deploymentTarget,
+        bytes memory data
+    ) external returns (Verifiers memory result, address deployerAddr) {
+        (bool success, bytes memory returnData) = deploymentTarget.call(data);
         require(success, "Verifiers deployment failed");
 
-        deployerAddr = abi.decode(returnData, (address));
-        result = GatewayCTMDeployerVerifiers(deployerAddr).getResult();
+        deployerAddr = _decodeDeployerAddress(returnData);
+        result = GatewayCTMDeployerVerifiersZKsyncOS(deployerAddr).getResult();
     }
 
     /// @notice Deploys CTM and ServerNotifier
-    function deployCTM(bytes memory data) external returns (GatewayCTMFinalResult memory result, address deployerAddr) {
-        (bool success, bytes memory returnData) = L2_CREATE2_FACTORY_ADDR.call(data);
+    function deployCTM(
+        address deploymentTarget,
+        bytes memory data
+    ) external returns (GatewayCTMFinalResult memory result, address deployerAddr) {
+        (bool success, bytes memory returnData) = deploymentTarget.call(data);
         require(success, "CTM deployment failed");
 
-        deployerAddr = abi.decode(returnData, (address));
-        result = GatewayCTMDeployerCTM(deployerAddr).getResult();
+        deployerAddr = _decodeDeployerAddress(returnData);
+        result = GatewayCTMDeployerCTMZKsyncOS(deployerAddr).getResult();
     }
 }
 
 contract GatewayCTMDeployerTest is Test {
     string internal constant GW_IS_EVM_EQUIVALENT_ENV = "GW_IS_EVM_EQUIVALENT";
+    uint256 internal constant SYSCOIN_TESTNET_L1_CHAIN_ID = 5700;
+    address internal constant DETERMINISTIC_CREATE2_ADDRESS = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
+    bytes internal constant CREATE2_FACTORY_RUNTIME_BYTECODE =
+        hex"7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3";
 
     GatewayCTMDeployerConfig deployerConfig;
 
     // This is done merely to publish the respective bytecodes.
     function _predeployContracts() internal {
         // DA contracts
-        new RollupDAManager();
-        new ValidiumL1DAValidator();
-        new RelayedSLDAValidator();
+        new SyscoinRelayedSLDAValidator();
+        new SyscoinRollupDAManager(address(1));
         new ZKsyncOSChainTypeManager(address(0), address(0), address(0), address(0));
         new EraChainTypeManager(address(0), address(0), address(0), address(0));
         new ProxyAdmin();
@@ -172,9 +198,10 @@ contract GatewayCTMDeployerTest is Test {
             aliasedGovernanceAddress: address(0x123),
             salt: keccak256("test-salt"),
             eraChainId: 1001,
-            l1ChainId: 1,
+            // SYSCOIN: this smoke test selects the mock wrapper, so its ultimate L1 must be a testnet.
+            l1ChainId: SYSCOIN_TESTNET_L1_CHAIN_ID,
             testnetVerifier: true,
-            isZKsyncOS: false,
+            isZKsyncOS: true,
             adminSelectors: new bytes4[](2),
             executorSelectors: new bytes4[](2),
             mailboxSelectors: new bytes4[](2),
@@ -186,7 +213,7 @@ contract GatewayCTMDeployerTest is Test {
             evmEmulatorHash: bytes32(uint256(0xdef)),
             genesisRoot: bytes32(uint256(0x123)),
             genesisRollupLeafIndex: 10,
-            genesisBatchCommitment: bytes32(uint256(0x456)),
+            genesisBatchCommitment: bytes32(uint256(1)),
             forceDeploymentsData: hex"deadbeef",
             protocolVersion: 1
         });
@@ -210,16 +237,22 @@ contract GatewayCTMDeployerTest is Test {
 
     // It is more a smoke test that indeed the deployment works
     function testGatewayCTMDeployer() external {
-        vm.setEnv(GW_IS_EVM_EQUIVALENT_ENV, "false");
+        // SYSCOIN: the Gateway is EVM-equivalent. Exercise the same deterministic
+        // CREATE2 factory and EVM bytecodes used by the real deployment path.
+        vm.setEnv(GW_IS_EVM_EQUIVALENT_ENV, "true");
+        vm.etch(DETERMINISTIC_CREATE2_ADDRESS, CREATE2_FACTORY_RUNTIME_BYTECODE);
+        // SYSCOIN: Mirror the relay runtime installed by canonical Gateway genesis.
+        vm.etch(SYSCOIN_EDGE_DA_RELAY_ADDRESS, type(SyscoinRelayedSLDAValidator).runtimeCode);
+        assertEq(SYSCOIN_EDGE_DA_RELAY_ADDRESS.codehash, SYSCOIN_EDGE_DA_RELAY_RUNTIME_HASH);
 
         // Calculate expected addresses using the helper FIRST
         // This is needed because some deployer constructors need addresses from earlier deployers
         (
             DeployedContracts memory calculatedContracts,
             DeployerCreate2Calldata memory deployerCalldata,
-            DeployerAddresses memory expectedDeployers, // DirectCreate2Calldata and create2FactoryAddress not needed for this test
+            DeployerAddresses memory expectedDeployers,
             ,
-
+            address deploymentTarget
         ) = GatewayCTMDeployerHelper.calculateAddresses(bytes32(0), deployerConfig);
 
         // Publish bytecodes for all deployers using calculated addresses
@@ -232,7 +265,8 @@ contract GatewayCTMDeployerTest is Test {
             tester,
             deployerCalldata,
             expectedDeployers,
-            calculatedContracts
+            calculatedContracts,
+            deploymentTarget
         );
 
         // Assemble actual deployed contracts from all deployers
@@ -277,40 +311,49 @@ contract GatewayCTMDeployerTest is Test {
             testnetVerifier: deployerConfig.testnetVerifier,
             isZKsyncOS: deployerConfig.isZKsyncOS
         });
-        new GatewayCTMDeployerVerifiers(verifiersConfig);
+        // SYSCOIN: publish the same root-L1-bound constructor bytecode used by the Gateway helper.
+        new GatewayCTMDeployerVerifiersZKsyncOS(verifiersConfig, deployerConfig.l1ChainId);
     }
 
     function _deployAllDeployers(
         GatewayCTMDeployerTester tester,
         DeployerCreate2Calldata memory deployerCalldata,
         DeployerAddresses memory expectedDeployers,
-        DeployedContracts memory calculatedContracts
+        DeployedContracts memory calculatedContracts,
+        address deploymentTarget
     ) internal returns (AllDeployerResults memory results) {
         address deployer;
 
         // DA deployer
-        (results.daResult, deployer) = tester.deployDA(deployerCalldata.daCalldata);
+        (results.daResult, deployer) = tester.deployDA(deploymentTarget, deployerCalldata.daCalldata);
         require(deployer == expectedDeployers.daDeployer, "DA deployer address mismatch");
 
         // ProxyAdmin deployer
-        (results.proxyAdminResult, deployer) = tester.deployProxyAdmin(deployerCalldata.proxyAdminCalldata);
+        (results.proxyAdminResult, deployer) = tester.deployProxyAdmin(
+            deploymentTarget,
+            deployerCalldata.proxyAdminCalldata
+        );
         require(deployer == expectedDeployers.proxyAdminDeployer, "ProxyAdmin deployer address mismatch");
 
         // ValidatorTimelock deployer
         (results.validatorTimelockResult, deployer) = tester.deployValidatorTimelock(
+            deploymentTarget,
             deployerCalldata.validatorTimelockCalldata
         );
         require(deployer == expectedDeployers.validatorTimelockDeployer, "ValidatorTimelock deployer address mismatch");
 
         // Verifiers deployer
-        (results.verifiersResult, deployer) = tester.deployVerifiers(deployerCalldata.verifiersCalldata);
+        (results.verifiersResult, deployer) = tester.deployVerifiers(
+            deploymentTarget,
+            deployerCalldata.verifiersCalldata
+        );
         require(deployer == expectedDeployers.verifiersDeployer, "Verifiers deployer address mismatch");
 
         // Need to publish CTM deployer bytecode with actual addresses
         _publishCTMDeployerBytecode(results, calculatedContracts);
 
         // CTM deployer
-        (results.ctmResult, deployer) = tester.deployCTM(deployerCalldata.ctmCalldata);
+        (results.ctmResult, deployer) = tester.deployCTM(deploymentTarget, deployerCalldata.ctmCalldata);
         require(deployer == expectedDeployers.ctmDeployer, "CTM deployer address mismatch");
 
         return results;
@@ -329,6 +372,6 @@ contract GatewayCTMDeployerTest is Test {
             genesisUpgrade: calculatedContracts.stateTransition.genesisUpgrade,
             verifier: results.verifiersResult.verifier
         });
-        new GatewayCTMDeployerCTM(ctmConfig);
+        new GatewayCTMDeployerCTMZKsyncOS(ctmConfig);
     }
 }

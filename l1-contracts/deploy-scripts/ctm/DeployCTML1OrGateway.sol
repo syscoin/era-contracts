@@ -46,9 +46,8 @@ enum CTMContract {
     TestnetVerifier,
     // ---- Gateway CTM deployers ----
     GatewayCTMDeployerCTM,
-    GatewayCTMDeployerVerifiers,
-    // ---- DA ----
-    BlobsL1DAValidatorZKsyncOS
+    // SYSCOIN: legacy selectable DA deployment identifiers are deliberately absent.
+    GatewayCTMDeployerVerifiers
 }
 
 library DeployCTML1OrGateway {
@@ -102,8 +101,16 @@ library DeployCTML1OrGateway {
         } else if (_contractName == CTMContract.DiamondInit) {
             return abi.encode(_isZKsyncOS);
         } else if (_contractName == CTMContract.DualVerifier || _contractName == CTMContract.TestnetVerifier) {
+            // SYSCOIN: preserve the upstream three-address production ABI and add L1 identity only to testnet.
             return
-                verifierCreationArgs(_isZKsyncOS, _config.verifierFflonk, _config.verifierPlonk, _config.verifierOwner);
+                verifierCreationArgs(
+                    _isZKsyncOS,
+                    _contractName == CTMContract.TestnetVerifier,
+                    _config.verifierFflonk,
+                    _config.verifierPlonk,
+                    _config.verifierOwner,
+                    _config.l1ChainId
+                );
         } else if (_contractName == CTMContract.ChainTypeManager) {
             return
                 abi.encode(
@@ -112,9 +119,8 @@ library DeployCTML1OrGateway {
                     _config.l1BytecodesSupplier,
                     _config.permissionlessValidator
                 );
-        } else if (_contractName == CTMContract.BlobsL1DAValidatorZKsyncOS) {
-            return abi.encode();
         } else {
+            // SYSCOIN: the removed legacy blob-validator constructor identifier fails closed here.
             revert("getCreationCalldata: Unknown CTM contract");
         }
     }
@@ -141,9 +147,8 @@ library DeployCTML1OrGateway {
             _compareStrings(_contractName, "EraChainTypeManager")
         ) {
             return CTMContract.ChainTypeManager;
-        } else if (_compareStrings(_contractName, "BlobsL1DAValidatorZKsyncOS")) {
-            return CTMContract.BlobsL1DAValidatorZKsyncOS;
         } else if (
+            // SYSCOIN: the removed legacy blob-validator name has no resolver branch.
             _compareStrings(_contractName, "EraTestnetVerifier") ||
             _compareStrings(_contractName, "ZKsyncOSTestnetVerifier")
         ) {
@@ -159,70 +164,87 @@ library DeployCTML1OrGateway {
 
     // ======================== Verifier helpers ========================
 
-    // TODO: pass this value from zkstack_cli
-    uint32 internal constant DEFAULT_ZKSYNC_OS_VERIFIER_VERSION = 6;
+    /// @dev Syscoin fresh deployments have one canonical final-v0.4/V8 verifier slot.
+    uint32 internal constant DEFAULT_ZKSYNC_OS_VERIFIER_VERSION = 8;
+
+    /// @notice Resolve the shared testnet-verifier flag for an upgrade.
+    /// @param _isZKsyncOS Whether the selected CTM is zkOS rather than generic Era.
+    /// @param _explicitZKsyncOSMockVerifier The value read from `SYSCOIN_ZKSYNC_OS_MOCK_VERIFIER`.
+    /// @dev SYSCOIN: zkOS defaults to the production verifier. Set
+    /// `SYSCOIN_ZKSYNC_OS_MOCK_VERIFIER=true` only for an explicitly fake-prover-backed testnet.
+    /// Generic Era preserves its upstream testnet-verifier default.
+    function resolveTestnetVerifierMode(
+        bool _isZKsyncOS,
+        bool _explicitZKsyncOSMockVerifier
+    ) internal pure returns (bool) {
+        return !_isZKsyncOS || _explicitZKsyncOSMockVerifier;
+    }
 
     /// @notice Encode constructor arguments for the main verifier.
-    ///         ZKsyncOS verifiers require an extra `_owner` argument.
+    /// @dev SYSCOIN: zkOS preserves the pinned upstream three-argument dual-verifier constructor;
+    /// its explicit testnet subclass additionally receives the ultimate L1 identity.
     function verifierCreationArgs(
         bool _isZKsyncOS,
+        bool _testnet,
         address _fflonk,
         address _plonk,
-        address _owner
+        address _owner,
+        uint256 _l1ChainId
     ) internal pure returns (bytes memory) {
         if (_isZKsyncOS) {
+            // SYSCOIN: the retained FFLONK contract is deployed and introspectable for upstream
+            // compatibility, but the V8 wrapper never routes a proof to it.
+            if (_testnet) {
+                return abi.encode(_fflonk, _plonk, _owner, _l1ChainId);
+            }
             return abi.encode(_fflonk, _plonk, _owner);
         }
         return abi.encode(_fflonk, _plonk);
     }
 
-    /// @notice Perform any post-deploy steps required for the verifier.
-    ///         For ZKsyncOS: registers sub-verifiers at the default version and
-    ///         transfers ownership. For Era: no-op.
-    /// @dev Caller must handle vm.startBroadcast / vm.stopBroadcast around this call.
-    ///      Idempotent — `addVerifier` reverts with `AddressAlreadySet` on the
-    ///      second call, and `transferOwnership` is a no-op when the owner /
-    ///      pendingOwner is already what we'd set. We pre-check both so a
-    ///      partial prior broadcast (deploy + addVerifier landed on real chain,
-    ///      but ownership flow didn't finish) can be replayed cleanly.
+    /// @notice Validate the constructor-fixed canonical verifier pair and governed ownership for zkOS.
+    /// @dev SYSCOIN: fresh constructors establish the full state atomically; this function is
+    /// a fail-closed postcondition check, while Era verifiers require no check here.
     function initializeVerifier(
         address _verifier,
         address _fflonk,
         address _plonk,
         address _owner,
         bool _isZKsyncOS
-    ) internal {
+    ) internal view {
         if (!_isZKsyncOS) {
             return;
         }
 
         ZKsyncOSDualVerifier verifier = ZKsyncOSDualVerifier(_verifier);
-
         IVerifierV2 currentFflonk = verifier.fflonkVerifiers(DEFAULT_ZKSYNC_OS_VERIFIER_VERSION);
         IVerifier currentPlonk = verifier.plonkVerifiers(DEFAULT_ZKSYNC_OS_VERIFIER_VERSION);
-        if (address(currentFflonk) == address(0) && address(currentPlonk) == address(0)) {
-            verifier.addVerifier(DEFAULT_ZKSYNC_OS_VERIFIER_VERSION, IVerifierV2(_fflonk), IVerifier(_plonk));
-        } else {
-            require(
-                address(currentFflonk) == _fflonk && address(currentPlonk) == _plonk,
-                "ZKsyncOSDualVerifier already initialised at the default version with a different (fflonk, plonk) pair"
-            );
-        }
-
-        if (verifier.owner() != _owner && verifier.pendingOwner() != _owner) {
-            verifier.transferOwnership(_owner);
-        }
+        require(
+            address(currentFflonk) == _fflonk && address(currentPlonk) == _plonk,
+            "ZKsyncOSDualVerifier constructor set a different canonical verifier pair"
+        );
+        _requireCompletedVerifierOwnership(verifier, _owner);
     }
 
-    /// @notice Transfer ownership of a ZKsyncOS dual verifier. No-op for Era verifiers.
-    function transferVerifierOwnership(address _verifier, address _newOwner, bool _isZKsyncOS) internal {
+    /// @notice Validate governed ownership of the zkOS verifier wrapper. No-op for Era.
+    function transferVerifierOwnership(address _verifier, address _newOwner, bool _isZKsyncOS) internal view {
         if (!_isZKsyncOS) {
             return;
         }
-        ZKsyncOSDualVerifier(_verifier).transferOwnership(_newOwner);
+        ZKsyncOSDualVerifier verifier = ZKsyncOSDualVerifier(_verifier);
+        // SYSCOIN: fresh wrappers are constructed with governance as the actual owner;
+        // accepting pending-only or attempting a legacy handoff here would mask a broken deployment.
+        _requireCompletedVerifierOwnership(verifier, _newOwner);
     }
 
-    /// @notice Retrieve sub-verifier addresses from a deployed dual verifier.
+    /// @dev SYSCOIN: enforce atomic fresh-deployment ownership; pending-only handoffs are invalid.
+    function _requireCompletedVerifierOwnership(ZKsyncOSDualVerifier _verifier, address _expectedOwner) private view {
+        require(_verifier.owner() == _expectedOwner, "ZKsyncOS verifier owner is not governance");
+        require(_verifier.pendingOwner() == address(0), "ZKsyncOS verifier has a pending ownership handoff");
+    }
+
+    /// @notice Retrieve shared verifier implementation slots.
+    /// @dev SYSCOIN: zkOS returns its retained dormant FFLONK plus active PLONK at canonical V8.
     function getSubVerifiers(
         address _verifier,
         bool _isZKsyncOS
@@ -232,9 +254,10 @@ library DeployCTML1OrGateway {
         }
 
         if (_isZKsyncOS) {
+            // SYSCOIN: canonical zkOS introspection reads both dormant/active implementations from slot 8.
             IZKsyncOSDualVerifier verifier = IZKsyncOSDualVerifier(_verifier);
-            fflonk = address(verifier.fflonkVerifiers(0));
-            plonk = address(verifier.plonkVerifiers(0));
+            fflonk = address(verifier.fflonkVerifiers(DEFAULT_ZKSYNC_OS_VERIFIER_VERSION));
+            plonk = address(verifier.plonkVerifiers(DEFAULT_ZKSYNC_OS_VERIFIER_VERSION));
         } else {
             IEraDualVerifier verifier = IEraDualVerifier(_verifier);
             fflonk = address(verifier.FFLONK_VERIFIER());
@@ -249,10 +272,14 @@ library DeployCTML1OrGateway {
     function _resolveCTMContractName(bool _isZKsyncOS, CTMContract _c) private view returns (string memory) {
         // Contracts with different names per VM
         if (_c == CTMContract.ChainTypeManager) return _isZKsyncOS ? "ZKsyncOSChainTypeManager" : "EraChainTypeManager";
+        // SYSCOIN: retain the exact pinned-upstream zkOS FFLONK artifact/deployment surface.
         if (_c == CTMContract.VerifierFflonk) return _isZKsyncOS ? "ZKsyncOSVerifierFflonk" : "EraVerifierFflonk";
         if (_c == CTMContract.VerifierPlonk) return _isZKsyncOS ? "ZKsyncOSVerifierPlonk" : "EraVerifierPlonk";
         if (_c == CTMContract.DualVerifier) return _isZKsyncOS ? "ZKsyncOSDualVerifier" : "EraDualVerifier";
-        if (_c == CTMContract.TestnetVerifier) return _isZKsyncOS ? "ZKsyncOSTestnetVerifier" : "EraTestnetVerifier";
+        if (_c == CTMContract.TestnetVerifier) {
+            // SYSCOIN: the zkOS variant is reserved for explicitly configured fake-prover testnets.
+            return _isZKsyncOS ? "ZKsyncOSTestnetVerifier" : "EraTestnetVerifier";
+        }
         if (_c == CTMContract.GatewayCTMDeployerCTM) {
             return _isZKsyncOS ? "GatewayCTMDeployerCTMZKsyncOS" : "GatewayCTMDeployerCTM";
         }
@@ -268,8 +295,7 @@ library DeployCTML1OrGateway {
         if (_c == CTMContract.CommitterFacet) return "CommitterFacet";
         if (_c == CTMContract.DiamondInit) return "DiamondInit";
         if (_c == CTMContract.ValidatorTimelock) return "ValidatorTimelock";
-        if (_c == CTMContract.BlobsL1DAValidatorZKsyncOS) return "BlobsL1DAValidatorZKsyncOS";
-
+        // SYSCOIN: removed legacy DA identifiers fail closed instead of resolving old bytecode.
         revert("DeployCTML1OrGateway: unknown CTMContract");
     }
 

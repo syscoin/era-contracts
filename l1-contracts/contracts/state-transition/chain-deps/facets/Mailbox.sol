@@ -26,6 +26,7 @@ import {UncheckedMath} from "../../../common/libraries/UncheckedMath.sol";
 import {L2ContractHelper} from "../../../common/l2-helpers/L2ContractHelper.sol";
 import {AddressAliasHelper} from "../../../vendor/AddressAliasHelper.sol";
 import {ZKChainBase} from "./ZKChainBase.sol";
+import {PRIORITY_TX_MAX_GAS_LIMIT} from "../../../common/PriorityGasLimits.sol"; // SYSCOIN: Separate priority and upgrade gas budgets.
 import {
     MAX_NEW_FACTORY_DEPS,
     REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
@@ -387,7 +388,7 @@ contract MailboxFacet is ZKChainBase, IMailboxImpl, MessageVerification, IMailbo
                 mintValue: 0,
                 l2Value: 0,
                 // Very large amount
-                l2GasLimit: 72_000_000,
+                l2GasLimit: PRIORITY_TX_MAX_GAS_LIMIT,
                 l2Calldata: data,
                 l2GasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
                 factoryDeps: new bytes[](0),
@@ -408,7 +409,7 @@ contract MailboxFacet is ZKChainBase, IMailboxImpl, MessageVerification, IMailbo
                 mintValue: 0,
                 l2Value: 0,
                 // Very large amount
-                l2GasLimit: 72_000_000,
+                l2GasLimit: PRIORITY_TX_MAX_GAS_LIMIT,
                 l2Calldata: _l2Calldata,
                 l2GasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
                 factoryDeps: new bytes[](0),

@@ -162,4 +162,22 @@ contract MakePermanentRollupTest is AdminTest {
         vm.prank(admin);
         adminFacet.setDAValidatorPair(anotherValidator, L2DACommitmentScheme.BLOBS_AND_PUBDATA_KECCAK256);
     }
+
+    function test_SyscoinPermanentRollupCannotSelectKZG4844Pair() public {
+        address admin = utilsFacet.util_getAdmin();
+
+        // SYSCOIN: The manager exposes only the compact ZKsync OS scheme. The same validator must not be selectable
+        // with the upstream EIP-4844/KZG scheme after the chain becomes a permanent rollup.
+        rollupDAManager.updateDAPair(l1DAValidator, L2DACommitmentScheme.BLOBS_AND_PUBDATA_KECCAK256, false);
+        rollupDAManager.updateDAPair(l1DAValidator, L2DACommitmentScheme.BLOBS_ZKSYNC_OS, true);
+
+        vm.prank(admin);
+        adminFacet.setDAValidatorPair(l1DAValidator, L2DACommitmentScheme.BLOBS_ZKSYNC_OS);
+        vm.prank(admin);
+        adminFacet.makePermanentRollup();
+
+        vm.prank(admin);
+        vm.expectRevert(InvalidDAForPermanentRollup.selector);
+        adminFacet.setDAValidatorPair(l1DAValidator, L2DACommitmentScheme.BLOBS_AND_PUBDATA_KECCAK256);
+    }
 }

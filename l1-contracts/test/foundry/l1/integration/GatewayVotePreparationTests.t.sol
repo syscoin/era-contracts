@@ -18,7 +18,10 @@ import {Diamond} from "contracts/state-transition/libraries/Diamond.sol";
 import {DiamondProxy} from "contracts/state-transition/chain-deps/DiamondProxy.sol";
 import {IDiamondInit} from "contracts/state-transition/chain-interfaces/IDiamondInit.sol";
 import {IChainTypeManager} from "contracts/state-transition/IChainTypeManager.sol";
+import {IExecutor} from "contracts/state-transition/chain-interfaces/IExecutor.sol";
+import {EMPTY_STRING_KECCAK, DEFAULT_L2_LOGS_TREE_ROOT_HASH} from "contracts/common/Config.sol";
 import {L2_BRIDGEHUB_ADDR, L2_INTEROP_CENTER_ADDR} from "contracts/common/l2-helpers/L2ContractAddresses.sol";
+import {SYSCOIN_EDGE_DA_RELAY_ADDRESS} from "contracts/common/SyscoinEdgeDARelayDeployment.sol";
 import {Utils} from "deploy-scripts/utils/Utils.sol";
 
 /// @notice Test-friendly subclass of GatewayVotePreparation that exposes the
@@ -53,6 +56,12 @@ contract GatewayVotePreparationForTest is GatewayVotePreparation {
 /// @dev Deploys the full L1 environment (bridgehub, CTM, era chain), then calls through
 /// GatewayVotePreparation's initialization path and exercises calculateAddresses.
 contract GatewayVotePreparationTests is ZKChainDeployer {
+    // SYSCOIN: Exact relay-bearing chain-creation pins consumed by the fresh Gateway CTM.
+    bytes32 internal constant SYSCOIN_CANONICAL_GENESIS_ROOT =
+        0xec4a6d11ed43e56364b38684633718eea0c3c270849ccef03dfcf2721a2b77fb;
+    bytes32 internal constant SYSCOIN_CANONICAL_STORED_BATCH_ZERO =
+        0xf537449b2ae8774f0073e37e622c7b69744cfc985baf8236be2c82411a161191;
+
     GatewayVotePreparationForTest votePreparationScript;
 
     uint256 constant GATEWAY_CHAIN_ID = 506;
@@ -100,7 +109,13 @@ contract GatewayVotePreparationTests is ZKChainDeployer {
 
         // Verify DA contracts
         assertTrue(contracts.daContracts.rollupDAManager != address(0), "RollupDAManager should be non-zero");
-        assertTrue(contracts.daContracts.validiumDAValidator != address(0), "ValidiumDAValidator should be non-zero");
+        // SYSCOIN: Gateway preparation binds the genesis relay and must not expose the legacy validium path.
+        assertEq(
+            contracts.daContracts.rollupSLDAValidator,
+            SYSCOIN_EDGE_DA_RELAY_ADDRESS,
+            "Gateway must bind the canonical genesis relay"
+        );
+        assertEq(contracts.daContracts.validiumDAValidator, address(0), "Validium must remain undeployed");
 
         // Verify determinism: calling again produces identical results
         (DeployedContracts memory contracts2, ) = votePreparationScript.initializeAndCalculateAddresses(
@@ -259,7 +274,32 @@ contract GatewayVotePreparationTests is ZKChainDeployer {
         assertTrue(config.executorSelectors.length > 0, "Executor selectors should be populated");
         assertTrue(config.mailboxSelectors.length > 0, "Mailbox selectors should be populated");
         assertTrue(config.gettersSelectors.length > 0, "Getters selectors should be populated");
-        assertTrue(config.genesisRoot != bytes32(0), "Genesis root should be set");
+        // SYSCOIN: Deployment and protocol-upgrade scripts both consume the committed zkOS
+        // genesis JSON. Pin the exact CTM root and its StoredBatchInfo hash in the real parser path.
+        assertEq(config.genesisRoot, SYSCOIN_CANONICAL_GENESIS_ROOT, "Unexpected zkOS genesis root");
+        assertEq(config.genesisRollupLeafIndex, 0, "zkOS repeated-storage index must stay zero");
+        assertEq(config.genesisBatchCommitment, bytes32(uint256(1)), "zkOS genesis commitment must be one");
+        assertLe(
+            config.genesisRollupLeafIndex,
+            type(uint64).max,
+            "zkOS repeated-storage index must fit StoredBatchInfo"
+        );
+        IExecutor.StoredBatchInfo memory batchZero = IExecutor.StoredBatchInfo({
+            batchNumber: 0,
+            batchHash: config.genesisRoot,
+            indexRepeatedStorageChanges: uint64(config.genesisRollupLeafIndex),
+            numberOfLayer1Txs: 0,
+            priorityOperationsHash: EMPTY_STRING_KECCAK,
+            dependencyRootsRollingHash: bytes32(0),
+            l2LogsTreeRoot: DEFAULT_L2_LOGS_TREE_ROOT_HASH,
+            timestamp: 0,
+            commitment: config.genesisBatchCommitment
+        });
+        assertEq(
+            keccak256(abi.encode(batchZero)),
+            SYSCOIN_CANONICAL_STORED_BATCH_ZERO,
+            "Unexpected CTM stored batch zero"
+        );
         assertTrue(config.protocolVersion != 0, "Protocol version should be set");
         assertTrue(config.isZKsyncOS, "Config should be in ZKsyncOS mode");
     }

@@ -5,17 +5,16 @@ pragma solidity 0.8.28;
 import {IAdmin} from "../../chain-interfaces/IAdmin.sol";
 import {IMailbox} from "../../chain-interfaces/IMailbox.sol";
 import {Diamond} from "../../libraries/Diamond.sol";
+import {PRIORITY_TX_MAX_GAS_LIMIT} from "../../../common/PriorityGasLimits.sol"; // SYSCOIN: Separate priority and upgrade gas budgets.
 import {
     L2DACommitmentScheme,
-    MAX_GAS_PER_TRANSACTION,
     MAX_PRICE_CHANGE_DENOMINATOR,
     MAX_PRICE_CHANGE_NUMERATOR,
     PRICE_REFERENCE_L1_GAS,
     PRICE_UPDATE_INTERVAL,
     PRIORITY_EXPIRATION,
     REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
-    ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT,
-    ZKSYNC_OS_MAX_BLOCK_GAS_LIMIT
+    ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT
 } from "../../../common/Config.sol";
 import {FeeParams, PubdataPricingMode} from "../ZKChainStorage.sol";
 import {ZKChainBase} from "./ZKChainBase.sol";
@@ -164,8 +163,9 @@ contract AdminFacet is ZKChainBase, IAdmin {
     }
 
     /// @inheritdoc IAdmin
-    function setPriorityTxMaxGasLimit(uint256 _newPriorityTxMaxGasLimit) external onlyChainTypeManager onlyL1 {
-        if (_newPriorityTxMaxGasLimit > MAX_GAS_PER_TRANSACTION) {
+    // The chain-local CTM is authoritative on both L1 and Gateway settlement layers.
+    function setPriorityTxMaxGasLimit(uint256 _newPriorityTxMaxGasLimit) external onlyChainTypeManager {
+        if (_newPriorityTxMaxGasLimit > PRIORITY_TX_MAX_GAS_LIMIT) {
             revert TooMuchGas();
         }
 
@@ -176,12 +176,14 @@ contract AdminFacet is ZKChainBase, IAdmin {
 
     /// @inheritdoc IAdmin
     function setZKsyncOSMaxTxGasLimit(uint64 _newMaxTxGasLimit) external onlyAdmin onlySettlementLayer onlyZKsyncOS {
-        // The cap may only be raised above Ethereum's EIP-7825 single-tx gas limit, never below.
+        // SYSCOIN: the canonical protocol V32 / execution V7 / proving V8 application fixes the
+        // chain config to Ethereum's EIP-7825 single-transaction gas limit. Until dynamic chain
+        // config is supported end-to-end, this
+        // setter may only idempotently persist that value.
         if (_newMaxTxGasLimit < ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT) {
             revert ZKsyncOSMaxTxGasLimitTooLow();
         }
-        // The cap must not exceed the ZKsync OS block gas limit: a higher value will halt the block production.
-        if (_newMaxTxGasLimit > ZKSYNC_OS_MAX_BLOCK_GAS_LIMIT) {
+        if (_newMaxTxGasLimit > ZKSYNC_OS_DEFAULT_MAX_TX_GAS_LIMIT) {
             revert ZKsyncOSMaxTxGasLimitTooHigh();
         }
         _enforceNoUnverifiedBatchesForChainConfigUpdate();
@@ -418,6 +420,10 @@ contract AdminFacet is ZKChainBase, IAdmin {
     function permanentlyAllowPriorityMode() external onlyAdmin onlySettlementLayer onlyL1 onlyZKsyncOS {
         if (s.priorityModeInfo.canBeActivated) {
             revert PriorityModeAlreadyAllowed();
+        }
+        // SYSCOIN: Match the migration pause guard; Priority Mode requires an open priority-request path.
+        if (s.pausedDepositsTimestamp != 0) {
+            revert NotCompatibleWithPriorityMode();
         }
         // Ensure that there is at least one priority tx with a non-zero request timestamp.
         // This guarantees that activatePriorityMode can actually function, since it relies on

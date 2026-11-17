@@ -28,6 +28,7 @@ struct Facets {
 // solhint-disable-next-line gas-struct-packing
 struct Verifiers {
     /// @notice Address of the VerifierFflonk contract.
+    /// @dev SYSCOIN: zkOS retains the pinned-upstream FFLONK deployment surface, but no proof type routes to it.
     address verifierFflonk;
     /// @notice Address of the VerifierPlonk contract.
     address verifierPlonk;
@@ -49,11 +50,11 @@ struct StateTransitionContracts {
 ///         deploy-scripts (L1 CTM deployment) and Gateway CTM deployer.
 // solhint-disable-next-line gas-struct-packing
 struct DAContracts {
-    /// @notice Address of the RollupDAManager contract.
+    /// @notice SYSCOIN: Address of the DA-pair manager (SyscoinRollupDAManager for canonical deployments).
     address rollupDAManager;
-    /// @notice Address of the rollup SL DA validator (RelayedSLDAValidator on GW, RollupL1DAValidator on L1).
+    /// @notice SYSCOIN: Canonical compact validator (Syscoin relay on Gateway, direct validator on L1).
     address rollupSLDAValidator;
-    /// @notice Address of the ValidiumL1DAValidator contract.
+    /// @notice SYSCOIN: Legacy ABI slot; canonical deployments leave it zero.
     address validiumDAValidator;
 }
 
