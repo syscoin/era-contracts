@@ -427,15 +427,20 @@ contract ZKsyncOSDualVerifierTest is Test {
         assertEq(result, expected);
     }
 
-    function test_computeZKsyncOSHash_singleInputWithZeroInitial() public view {
-        uint256 initialHash = 0;
+    function testFuzz_computeZKsyncOSHash_singleInputWithZeroInitial(uint256 batchHash) public view {
         uint256[] memory publicInputs = new uint256[](1);
-        publicInputs[0] = 100;
+        publicInputs[0] = batchHash;
 
-        uint256 result = verifier.computeZKsyncOSHash(initialHash, publicInputs);
+        assertEq(verifier.computeZKsyncOSHash(0, publicInputs), batchHash >> 32);
+    }
 
-        // Truncation is applied once even for a single-batch range.
-        assertEq(result, publicInputs[0] >> 32);
+    function testFuzz_computeZKsyncOSHash_singleInputRejectsNonzeroCarry(uint256 carriedHash, uint256 batchHash) public {
+        vm.assume(carriedHash != 0);
+        uint256[] memory publicInputs = new uint256[](1);
+        publicInputs[0] = batchHash;
+
+        vm.expectRevert(NonZeroCarriedHash.selector);
+        verifier.computeZKsyncOSHash(carriedHash, publicInputs);
     }
 
     // ============ Fuzz Tests ============
