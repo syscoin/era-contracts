@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-import {ZKsyncOSDualVerifier} from "contracts/state-transition/verifiers/ZKsyncOSDualVerifier.sol";
+import {NonZeroCarriedHash, ZKsyncOSDualVerifier} from "contracts/state-transition/verifiers/ZKsyncOSDualVerifier.sol";
 import {ZKsyncOSTestnetVerifier} from "contracts/state-transition/verifiers/ZKsyncOSTestnetVerifier.sol";
 import {IVerifier} from "contracts/state-transition/chain-interfaces/IVerifier.sol";
 import {IVerifierV2} from "contracts/state-transition/chain-interfaces/IVerifierV2.sol";
@@ -403,17 +403,15 @@ contract ZKsyncOSDualVerifierTest is Test {
 
     // ============ computeZKsyncOSHash Tests ============
 
-    function test_computeZKsyncOSHash_withNonZeroInitialHash() public view {
-        uint256 initialHash = 12345;
+    function testFuzz_verify_revertsOnNonZeroCarriedHash(uint256 carriedHash) public {
+        vm.assume(carriedHash != 0);
         uint256[] memory publicInputs = new uint256[](2);
-        publicInputs[0] = 100;
-        publicInputs[1] = 200;
+        uint256[] memory proof = new uint256[](3);
+        proof[0] = ZKSYNC_OS_PLONK_VERIFICATION_TYPE | (8 << 8);
+        proof[1] = carriedHash;
 
-        uint256 result = verifier.computeZKsyncOSHash(initialHash, publicInputs);
-
-        uint256 expected = uint256(keccak256(abi.encodePacked(initialHash, publicInputs))) >> 32;
-
-        assertEq(result, expected);
+        vm.expectRevert(NonZeroCarriedHash.selector);
+        verifier.verify(publicInputs, proof);
     }
 
     function test_computeZKsyncOSHash_withZeroInitialHash() public view {
@@ -425,18 +423,6 @@ contract ZKsyncOSDualVerifierTest is Test {
         uint256 result = verifier.computeZKsyncOSHash(initialHash, publicInputs);
 
         uint256 expected = uint256(keccak256(abi.encodePacked(publicInputs))) >> 32;
-
-        assertEq(result, expected);
-    }
-
-    function test_computeZKsyncOSHash_singleInput() public view {
-        uint256 initialHash = 12345;
-        uint256[] memory publicInputs = new uint256[](1);
-        publicInputs[0] = 100;
-
-        uint256 result = verifier.computeZKsyncOSHash(initialHash, publicInputs);
-
-        uint256 expected = uint256(keccak256(abi.encodePacked(initialHash, publicInputs[0]))) >> 32;
 
         assertEq(result, expected);
     }
@@ -454,19 +440,13 @@ contract ZKsyncOSDualVerifierTest is Test {
 
     // ============ Fuzz Tests ============
 
-    function testFuzz_computeZKsyncOSHash_deterministicResults(
-        uint256 initialHash,
-        uint256 input1,
-        uint256 input2
-    ) public view {
-        uint256[] memory publicInputs = new uint256[](2);
-        publicInputs[0] = input1;
-        publicInputs[1] = input2;
+    function testFuzz_computeZKsyncOSHash_hashesThreeInputsOnce(uint256 a, uint256 b, uint256 c) public view {
+        uint256[] memory publicInputs = new uint256[](3);
+        publicInputs[0] = a;
+        publicInputs[1] = b;
+        publicInputs[2] = c;
 
-        uint256 result1 = verifier.computeZKsyncOSHash(initialHash, publicInputs);
-        uint256 result2 = verifier.computeZKsyncOSHash(initialHash, publicInputs);
-
-        assertEq(result1, result2);
+        assertEq(verifier.computeZKsyncOSHash(0, publicInputs), uint256(keccak256(abi.encodePacked(a, b, c))) >> 32);
     }
 
     function testFuzz_verify_revertsOnUnknownType(uint8 verifierType) public {
