@@ -59,9 +59,10 @@ contract SharedL2ContractL2Deployer is SharedL2ContractDeployer {
         // Values from config-deploy-ctm.toml
         chainCreationParams.genesisRoot = bytes32(0x1000000000000000000000000000000000000000000000000000000000000000);
         chainCreationParams.genesisRollupLeafIndex = 1;
-        chainCreationParams.genesisBatchCommitment = bytes32(
-            0x1000000000000000000000000000000000000000000000000000000000000000
-        );
+        // SYSCOIN: The OS chain type manager checks the canonical genesis commitment.
+        chainCreationParams.genesisBatchCommitment = config.isZKsyncOS
+            ? bytes32(uint256(1))
+            : bytes32(0x1000000000000000000000000000000000000000000000000000000000000000);
         chainCreationParams.latestProtocolVersion = 120259084288;
         chainCreationParams.bootloaderHash = bytes32(
             0x0100085F9382A7928DD83BFC529121827B5F29F18B9AA10D18AA68E1BE7DDC35

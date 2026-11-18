@@ -15,7 +15,7 @@ import {
 import {IVerifierV2} from "contracts/state-transition/chain-interfaces/IVerifierV2.sol";
 import {IVerifier} from "contracts/state-transition/chain-interfaces/IVerifier.sol";
 import {ZKsyncOSDualVerifier} from "contracts/state-transition/verifiers/ZKsyncOSDualVerifier.sol";
-import {SyscoinRelayedSLDAValidator} from "contracts/state-transition/data-availability/SyscoinRelayedSLDAValidator.sol";
+import {BytecodeUtils} from "deploy-scripts/utils/bytecode/BytecodeUtils.s.sol";
 
 import {DAContracts} from "contracts/common/StateTransitionTypes.sol";
 import {
@@ -132,7 +132,10 @@ contract GatewayCTMDeployerZKsyncOSTest is Test {
         // Deploy the deterministic CREATE2 factory at the expected address
         vm.etch(Utils.DETERMINISTIC_CREATE2_ADDRESS, Utils.CREATE2_FACTORY_RUNTIME_BYTECODE);
         // SYSCOIN: Mirror the canonical genesis installation that must precede Gateway conversion.
-        vm.etch(SYSCOIN_EDGE_DA_RELAY_ADDRESS, type(SyscoinRelayedSLDAValidator).runtimeCode);
+        vm.etch(
+            SYSCOIN_EDGE_DA_RELAY_ADDRESS,
+            BytecodeUtils.readDeployedBytecodeL1(true, "SyscoinRelayedSLDAValidator.sol", "SyscoinRelayedSLDAValidator")
+        );
         assertEq(SYSCOIN_EDGE_DA_RELAY_ADDRESS.codehash, SYSCOIN_EDGE_DA_RELAY_RUNTIME_HASH);
 
         // Initialize the configuration with sample data for ZKsyncOS mode
