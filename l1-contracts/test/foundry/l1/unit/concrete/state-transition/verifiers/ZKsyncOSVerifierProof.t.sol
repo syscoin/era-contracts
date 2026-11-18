@@ -36,6 +36,10 @@ contract ZKsyncOSVerifierProofTest is Test {
         _assertAccepted(_activeProof());
     }
 
+    function test_acceptsCorrectedMinimalProofInPlonkAndProductionRouter() public view {
+        _assertAccepted(ZKsyncOSProofFixtures.correctedMinimal());
+    }
+
     function test_rejectsChangedPublicInput() public {
         ZKsyncOSProofFixtures.Fixture memory fixture = _activeProof();
         fixture.publicInputs[0] ^= 1;
@@ -85,11 +89,11 @@ contract ZKsyncOSVerifierProofTest is Test {
     }
 
     function _otherGuestProof() internal pure returns (ZKsyncOSProofFixtures.Fixture memory) {
-        return ZKsyncOSProofFixtures.correctedSignedTransfer();
+        return ZKsyncOSProofFixtures.retainedSignedTransfer();
     }
 
     function _activeProof() internal pure returns (ZKsyncOSProofFixtures.Fixture memory) {
-        return ZKsyncOSProofFixtures.retainedSignedTransfer();
+        return ZKsyncOSProofFixtures.correctedSignedTransfer();
     }
 
     function _assertAccepted(ZKsyncOSProofFixtures.Fixture memory _fixture) internal view {
