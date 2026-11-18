@@ -434,7 +434,10 @@ contract ZKsyncOSDualVerifierTest is Test {
         assertEq(verifier.computeZKsyncOSHash(0, publicInputs), _batchHash >> 32);
     }
 
-    function testFuzz_computeZKsyncOSHash_singleInputRejectsNonzeroCarry(uint256 _carriedHash, uint256 _batchHash) public {
+    function testFuzz_computeZKsyncOSHash_singleInputRejectsNonzeroCarry(
+        uint256 _carriedHash,
+        uint256 _batchHash
+    ) public {
         vm.assume(_carriedHash != 0);
         uint256[] memory publicInputs = new uint256[](1);
         publicInputs[0] = _batchHash;
