@@ -153,9 +153,15 @@ jobs:
         with:
           version: "v1.4.0"
 
-      - name: Copy configs from template
+      - name: Prepare Syscoin OS deployment inputs
         working-directory: ./l1-contracts
-        run: cp -r deploy-script-config-template/. script-config
+        run: |
+          cp -r deploy-script-config-template/. script-config
+          config=script-config/config-deploy-ctm.toml
+          sed -i -e 's/^is_zk_sync_os = false$/is_zk_sync_os = true/' \
+                 -e 's/^testnet_verifier = true$/testnet_verifier = false/' "$config"
+          grep -Fx 'is_zk_sync_os = true' "$config"
+          grep -Fx 'testnet_verifier = false' "$config"
 
       - name: Run anvil
         run: |

@@ -5,7 +5,7 @@ on: pull_request
 jobs:
   slither:
     name: Slither check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout the repository
@@ -25,14 +25,22 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: 3.8
+          python-version: "3.12"
 
       - name: Install foundry-zksync
         uses: ./.github/actions/install-zksync-foundry
 
       - name: Install Slither
         run: |
-          pip install slither-analyzer
+          pip install slither-analyzer==0.11.3
+          solc-select use 0.8.28 --always-install
+
+      - name: Analyze the v32 production settlement router
+        working-directory: ./l1-contracts
+        run: |
+          slither contracts/state-transition/verifiers/ZKsyncOSDualVerifier.sol \
+            --config-file slither.config.json --compile-force-framework solc \
+            --solc-args "--optimize --optimize-runs 9999999 --evm-version prague"
 
       - name: Remove non-compiled files
         run: |
