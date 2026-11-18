@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-import {ZKsyncOSDualVerifier} from "contracts/state-transition/verifiers/ZKsyncOSDualVerifier.sol";
+import {NonZeroCarriedHash, ZKsyncOSDualVerifier} from "contracts/state-transition/verifiers/ZKsyncOSDualVerifier.sol";
 import {ZKsyncOSTestnetVerifier} from "contracts/state-transition/verifiers/ZKsyncOSTestnetVerifier.sol";
 import {IVerifier} from "contracts/state-transition/chain-interfaces/IVerifier.sol";
 import {IVerifierV2} from "contracts/state-transition/chain-interfaces/IVerifierV2.sol";
@@ -403,17 +403,15 @@ contract ZKsyncOSDualVerifierTest is Test {
 
     // ============ computeZKsyncOSHash Tests ============
 
-    function test_computeZKsyncOSHash_withNonZeroInitialHash() public view {
-        uint256 initialHash = 12345;
+    function testFuzz_verify_revertsOnNonZeroCarriedHash(uint256 _carriedHash) public {
+        vm.assume(_carriedHash != 0);
         uint256[] memory publicInputs = new uint256[](2);
-        publicInputs[0] = 100;
-        publicInputs[1] = 200;
+        uint256[] memory proof = new uint256[](3);
+        proof[0] = ZKSYNC_OS_PLONK_VERIFICATION_TYPE | (8 << 8);
+        proof[1] = _carriedHash;
 
-        uint256 result = verifier.computeZKsyncOSHash(initialHash, publicInputs);
-
-        uint256 expected = uint256(keccak256(abi.encodePacked(initialHash, publicInputs))) >> 32;
-
-        assertEq(result, expected);
+        vm.expectRevert(NonZeroCarriedHash.selector);
+        verifier.verify(publicInputs, proof);
     }
 
     function test_computeZKsyncOSHash_withZeroInitialHash() public view {
@@ -429,55 +427,45 @@ contract ZKsyncOSDualVerifierTest is Test {
         assertEq(result, expected);
     }
 
-    function test_computeZKsyncOSHash_singleInput() public view {
-        uint256 initialHash = 12345;
+    function testFuzz_computeZKsyncOSHash_singleInputWithZeroInitial(uint256 _batchHash) public view {
         uint256[] memory publicInputs = new uint256[](1);
-        publicInputs[0] = 100;
+        publicInputs[0] = _batchHash;
 
-        uint256 result = verifier.computeZKsyncOSHash(initialHash, publicInputs);
-
-        uint256 expected = uint256(keccak256(abi.encodePacked(initialHash, publicInputs[0]))) >> 32;
-
-        assertEq(result, expected);
+        assertEq(verifier.computeZKsyncOSHash(0, publicInputs), _batchHash >> 32);
     }
 
-    function test_computeZKsyncOSHash_singleInputWithZeroInitial() public view {
-        uint256 initialHash = 0;
+    function testFuzz_computeZKsyncOSHash_singleInputRejectsNonzeroCarry(
+        uint256 _carriedHash,
+        uint256 _batchHash
+    ) public {
+        vm.assume(_carriedHash != 0);
         uint256[] memory publicInputs = new uint256[](1);
-        publicInputs[0] = 100;
+        publicInputs[0] = _batchHash;
 
-        uint256 result = verifier.computeZKsyncOSHash(initialHash, publicInputs);
-
-        // Truncation is applied once even for a single-batch range.
-        assertEq(result, publicInputs[0] >> 32);
+        vm.expectRevert(NonZeroCarriedHash.selector);
+        verifier.computeZKsyncOSHash(_carriedHash, publicInputs);
     }
 
     // ============ Fuzz Tests ============
 
-    function testFuzz_computeZKsyncOSHash_deterministicResults(
-        uint256 initialHash,
-        uint256 input1,
-        uint256 input2
-    ) public view {
-        uint256[] memory publicInputs = new uint256[](2);
-        publicInputs[0] = input1;
-        publicInputs[1] = input2;
+    function testFuzz_computeZKsyncOSHash_hashesThreeInputsOnce(uint256 _a, uint256 _b, uint256 _c) public view {
+        uint256[] memory publicInputs = new uint256[](3);
+        publicInputs[0] = _a;
+        publicInputs[1] = _b;
+        publicInputs[2] = _c;
 
-        uint256 result1 = verifier.computeZKsyncOSHash(initialHash, publicInputs);
-        uint256 result2 = verifier.computeZKsyncOSHash(initialHash, publicInputs);
-
-        assertEq(result1, result2);
+        assertEq(verifier.computeZKsyncOSHash(0, publicInputs), uint256(keccak256(abi.encodePacked(_a, _b, _c))) >> 32);
     }
 
-    function testFuzz_verify_revertsOnUnknownType(uint8 verifierType) public {
-        vm.assume(verifierType != 2 && verifierType != 3);
+    function testFuzz_verify_revertsOnUnknownType(uint8 _verifierType) public {
+        vm.assume(_verifierType != 2 && _verifierType != 3);
 
         uint256[] memory publicInputs = new uint256[](2);
         publicInputs[0] = 123;
         publicInputs[1] = 456;
 
         uint256[] memory proof = new uint256[](4);
-        proof[0] = verifierType | (8 << 8); // type in lower 8 bits, canonical version 8
+        proof[0] = _verifierType | (8 << 8); // type in lower 8 bits, canonical version 8
         proof[1] = 0;
         proof[2] = 789;
         proof[3] = 101112;
