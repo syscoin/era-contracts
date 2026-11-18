@@ -3,10 +3,11 @@ pragma solidity 0.8.28;
 
 import {ExecutorTest} from "../BatchProcessing/_Executor_Shared.t.sol";
 import {Utils} from "../Utils/Utils.sol";
-import {IExecutor, TOTAL_BLOBS_IN_COMMITMENT} from "contracts/state-transition/chain-interfaces/IExecutor.sol";
+import {IExecutor} from "contracts/state-transition/chain-interfaces/IExecutor.sol";
 import {CommitBatchInfoZKsyncOS} from "contracts/state-transition/chain-interfaces/ICommitter.sol";
 import {PriorityOpsBatchInfo} from "contracts/state-transition/libraries/PriorityTree.sol";
 import {IL1DAValidator, L1DAValidatorOutput} from "contracts/state-transition/chain-interfaces/IL1DAValidator.sol";
+import {SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME} from "contracts/common/SyscoinConfig.sol";
 import {Merkle} from "contracts/common/libraries/Merkle.sol";
 import {PRIORITY_EXPIRATION, REQUIRED_L2_GAS_PRICE_PER_PUBDATA} from "contracts/common/Config.sol";
 import {L2TransactionRequestDirect} from "contracts/core/bridgehub/IBridgehubBase.sol";
@@ -94,8 +95,9 @@ contract PermissionlessValidatorExecutorIntegrationTest is ExecutorTest {
     }
 
     function _mockDAValidator(uint256 batchNumber) internal {
-        bytes32[] memory blobHashes = new bytes32[](TOTAL_BLOBS_IN_COMMITMENT);
-        bytes32[] memory blobCommitments = new bytes32[](TOTAL_BLOBS_IN_COMMITMENT);
+        // SYSCOIN: Compact edge DA commits to a reference root instead of KZG blob arrays.
+        bytes32[] memory blobHashes = new bytes32[](0);
+        bytes32[] memory blobCommitments = new bytes32[](0);
         vm.mockCall(
             rollupL1DAValidator,
             abi.encodeWithSelector(IL1DAValidator.checkDA.selector, l2ChainId, batchNumber),
@@ -140,6 +142,7 @@ contract PermissionlessValidatorExecutorIntegrationTest is ExecutorTest {
         uint256 numberOfLayer1Txs
     ) internal view returns (CommitBatchInfoZKsyncOS memory info) {
         info = newCommitBatchInfoZKsyncOS;
+        info.daCommitmentScheme = SYSCOIN_ROLLUP_L2_DA_COMMITMENT_SCHEME;
         info.numberOfLayer1Txs = numberOfLayer1Txs;
         info.numberOfLayer2Txs = 0;
         info.priorityOperationsHash = priorityOpsHash;
@@ -182,7 +185,8 @@ contract PermissionlessValidatorExecutorIntegrationTest is ExecutorTest {
                     c.l2LogsTreeRoot,
                     bytes32(0), // no system-contract upgrade tx
                     c.dependencyRootsRollingHash,
-                    c.slChainId
+                    c.slChainId,
+                    c.edgeDARefsRoot
                 )
             );
     }

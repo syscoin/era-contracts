@@ -30,13 +30,14 @@ contract GetERC20GettersTest is Test {
         (chainId, nameBytes, symbolBytes, decimalsBytes) = abi.decode(tail, (uint256, bytes, bytes, bytes));
     }
 
-    function test_ETH_ReturnsEtherEth18() public view {
+    // SYSCOIN: The native-token sentinel maps to the root's native asset metadata.
+    function test_NativeToken_ReturnsSyscoinSys18() public view {
         bytes memory data = helper.callGetters(address(1), 1337);
         (uint256 chainId, bytes memory nameBytes, bytes memory symbolBytes, bytes memory decimalsBytes) = _decode(data);
 
         assertEq(chainId, 1337, "chainId");
-        assertEq(keccak256(nameBytes), keccak256(abi.encode("Ether")), "name");
-        assertEq(keccak256(symbolBytes), keccak256(abi.encode("ETH")), "symbol");
+        assertEq(keccak256(nameBytes), keccak256(abi.encode("Syscoin")), "name");
+        assertEq(keccak256(symbolBytes), keccak256(abi.encode("SYS")), "symbol");
         assertEq(keccak256(decimalsBytes), keccak256(abi.encode(uint8(18))), "decimals");
     }
 

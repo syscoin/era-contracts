@@ -212,8 +212,9 @@ contract AssetRouterIntegrationTest is L1ContractDeployer, ZKChainDeployer, Toke
         BridgedStandardERC20 bridgedToken = BridgedStandardERC20(
             addresses.l1NativeTokenVault.tokenAddress(l2TokenAssetId)
         );
-        assertEq(bridgedToken.name(), "Ether");
-        assertEq(bridgedToken.symbol(), "ETH");
+        // SYSCOIN: The bridge represents the root's native asset.
+        assertEq(bridgedToken.name(), "Syscoin");
+        assertEq(bridgedToken.symbol(), "SYS");
         assertEq(bridgedToken.decimals(), 18);
     }
 

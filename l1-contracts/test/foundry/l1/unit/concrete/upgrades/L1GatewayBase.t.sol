@@ -129,8 +129,9 @@ contract L1FixedForceDeploymentsHelperTest is Test {
         assertEq(chainData.l2LegacySharedBridge, legacySharedBridgeAddress);
         assertEq(chainData.predeployedL2WethAddress, address(0));
         assertEq(chainData.baseTokenL1Address, ETH_TOKEN_ADDRESS);
-        assertEq(chainData.baseTokenMetadata.name, "Ether");
-        assertEq(chainData.baseTokenMetadata.symbol, "ETH");
+        // SYSCOIN: The gateway initializes metadata for the root's native asset.
+        assertEq(chainData.baseTokenMetadata.name, "Syscoin");
+        assertEq(chainData.baseTokenMetadata.symbol, "SYS");
         assertEq(chainData.baseTokenMetadata.decimals, 18);
     }
 
