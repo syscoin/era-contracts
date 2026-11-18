@@ -126,8 +126,9 @@ contract BridgeHelperTest is Test {
         (uint256 chainId, bytes memory name, bytes memory symbol, bytes memory decimals) = dec.decodeTokenData(result);
 
         assertEq(chainId, ORIGIN_CHAIN_ID);
-        assertEq(abi.decode(name, (string)), "Ether");
-        assertEq(abi.decode(symbol, (string)), "ETH");
+        // SYSCOIN: The bridge represents the root's native asset.
+        assertEq(abi.decode(name, (string)), "Syscoin");
+        assertEq(abi.decode(symbol, (string)), "SYS");
         assertEq(abi.decode(decimals, (uint8)), 18);
     }
 

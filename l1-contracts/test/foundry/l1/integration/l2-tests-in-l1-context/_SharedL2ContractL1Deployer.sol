@@ -22,7 +22,6 @@ import {DummyInteropRecipient} from "contracts/dev-contracts/test/DummyInteropRe
 import {L2UtilsBase} from "./L2UtilsBase.sol";
 import {DeployCTMUtils} from "deploy-scripts/ctm/DeployCTMUtils.s.sol";
 import {DeployIntegrationUtils} from "../deploy-scripts/DeployIntegrationUtils.s.sol";
-import {DeployCTML1OrGateway} from "deploy-scripts/ctm/DeployCTML1OrGateway.sol";
 
 contract SharedL2ContractL1Deployer is SharedL2ContractDeployer, DeployCTMIntegrationScript {
     using stdToml for string;
@@ -63,11 +62,8 @@ contract SharedL2ContractL1Deployer is SharedL2ContractDeployer, DeployCTMIntegr
         ctmAddresses.admin.governance = makeAddr("governance");
         ctmAddresses.chainAdmin = makeAddr("chainAdmin");
         ctmAddresses.stateTransition.genesisUpgrade = deploySimpleContract("L1GenesisUpgrade", true);
-        (, string memory verifierName) = DeployCTML1OrGateway.resolveMainVerifier(
-            config.isZKsyncOS,
-            config.testnetVerifier
-        );
-        ctmAddresses.stateTransition.verifiers.verifier = deploySimpleContract(verifierName, true);
+        // SYSCOIN: The testnet wrapper needs deployed implementations for both verifier slots.
+        deployVerifiers();
         ctmAddresses.stateTransition.proxies.validatorTimelock = deploySimpleContract("ValidatorTimelock", true);
         (
             ctmAddresses.stateTransition.implementations.serverNotifier,
@@ -94,7 +90,8 @@ contract SharedL2ContractL1Deployer is SharedL2ContractDeployer, DeployCTMIntegr
         override(DeployCTMIntegrationScript, DeployIntegrationUtils)
         returns (Diamond.FacetCut[] memory)
     {
-        return super.getChainCreationFacetCuts(stateTransition);
+        // This EVM fixture can read facet artifacts even when the suite runs alone.
+        return DeployIntegrationUtils.getChainCreationFacetCuts(stateTransition);
     }
 
     function getUpgradeAddedFacetCuts(
