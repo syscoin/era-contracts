@@ -403,12 +403,12 @@ contract ZKsyncOSDualVerifierTest is Test {
 
     // ============ computeZKsyncOSHash Tests ============
 
-    function testFuzz_verify_revertsOnNonZeroCarriedHash(uint256 carriedHash) public {
-        vm.assume(carriedHash != 0);
+    function testFuzz_verify_revertsOnNonZeroCarriedHash(uint256 _carriedHash) public {
+        vm.assume(_carriedHash != 0);
         uint256[] memory publicInputs = new uint256[](2);
         uint256[] memory proof = new uint256[](3);
         proof[0] = ZKSYNC_OS_PLONK_VERIFICATION_TYPE | (8 << 8);
-        proof[1] = carriedHash;
+        proof[1] = _carriedHash;
 
         vm.expectRevert(NonZeroCarriedHash.selector);
         verifier.verify(publicInputs, proof);
@@ -427,42 +427,42 @@ contract ZKsyncOSDualVerifierTest is Test {
         assertEq(result, expected);
     }
 
-    function testFuzz_computeZKsyncOSHash_singleInputWithZeroInitial(uint256 batchHash) public view {
+    function testFuzz_computeZKsyncOSHash_singleInputWithZeroInitial(uint256 _batchHash) public view {
         uint256[] memory publicInputs = new uint256[](1);
-        publicInputs[0] = batchHash;
+        publicInputs[0] = _batchHash;
 
-        assertEq(verifier.computeZKsyncOSHash(0, publicInputs), batchHash >> 32);
+        assertEq(verifier.computeZKsyncOSHash(0, publicInputs), _batchHash >> 32);
     }
 
-    function testFuzz_computeZKsyncOSHash_singleInputRejectsNonzeroCarry(uint256 carriedHash, uint256 batchHash) public {
-        vm.assume(carriedHash != 0);
+    function testFuzz_computeZKsyncOSHash_singleInputRejectsNonzeroCarry(uint256 _carriedHash, uint256 _batchHash) public {
+        vm.assume(_carriedHash != 0);
         uint256[] memory publicInputs = new uint256[](1);
-        publicInputs[0] = batchHash;
+        publicInputs[0] = _batchHash;
 
         vm.expectRevert(NonZeroCarriedHash.selector);
-        verifier.computeZKsyncOSHash(carriedHash, publicInputs);
+        verifier.computeZKsyncOSHash(_carriedHash, publicInputs);
     }
 
     // ============ Fuzz Tests ============
 
-    function testFuzz_computeZKsyncOSHash_hashesThreeInputsOnce(uint256 a, uint256 b, uint256 c) public view {
+    function testFuzz_computeZKsyncOSHash_hashesThreeInputsOnce(uint256 _a, uint256 _b, uint256 _c) public view {
         uint256[] memory publicInputs = new uint256[](3);
-        publicInputs[0] = a;
-        publicInputs[1] = b;
-        publicInputs[2] = c;
+        publicInputs[0] = _a;
+        publicInputs[1] = _b;
+        publicInputs[2] = _c;
 
-        assertEq(verifier.computeZKsyncOSHash(0, publicInputs), uint256(keccak256(abi.encodePacked(a, b, c))) >> 32);
+        assertEq(verifier.computeZKsyncOSHash(0, publicInputs), uint256(keccak256(abi.encodePacked(_a, _b, _c))) >> 32);
     }
 
-    function testFuzz_verify_revertsOnUnknownType(uint8 verifierType) public {
-        vm.assume(verifierType != 2 && verifierType != 3);
+    function testFuzz_verify_revertsOnUnknownType(uint8 _verifierType) public {
+        vm.assume(_verifierType != 2 && _verifierType != 3);
 
         uint256[] memory publicInputs = new uint256[](2);
         publicInputs[0] = 123;
         publicInputs[1] = 456;
 
         uint256[] memory proof = new uint256[](4);
-        proof[0] = verifierType | (8 << 8); // type in lower 8 bits, canonical version 8
+        proof[0] = _verifierType | (8 << 8); // type in lower 8 bits, canonical version 8
         proof[1] = 0;
         proof[2] = 789;
         proof[3] = 101112;
