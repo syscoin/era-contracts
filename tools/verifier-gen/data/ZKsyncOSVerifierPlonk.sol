@@ -9,7 +9,7 @@ import {IVerifier} from "../chain-interfaces/IVerifier.sol";
 /// @notice Modified version of the Permutations over Lagrange-bases for Oecumenical Noninteractive arguments of
 /// Knowledge (PLONK) verifier.
 /// Modifications have been made to optimize the proof system for ZK chain circuits.
-/// @dev Contract was generated from a verification key with a hash of 0x22b4a58c40ab11839bfc79c96957f24711776f3e1992fa3cf14c1c3b898a2153
+/// @dev Contract was generated from a verification key with a hash of 0x9bb49673b5437ada0c0941bb7f35422456a5c7833dd8292bf17f29fe1e9baa97
 /// @dev It uses a custom memory layout inside the inline assembly block. Each reserved memory cell is declared in the
 /// constants below.
 /// @dev For a better understanding of the verifier algorithm please refer to the following papers:
@@ -233,8 +233,8 @@ contract ZKsyncOSVerifierPlonk is IVerifier {
                              Constants
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant OMEGA = 0xd94d63997367c97a8ed16c17adaae39262b9af83acb9e003f94c217303dd160;
-    uint256 internal constant DOMAIN_SIZE = 0x2000000; // 2^25
+    uint256 internal constant OMEGA = 0x18c95f1ae6514e11a1b30fd7923947c5ffcec5347f16e91b4dd654168326bede;
+    uint256 internal constant DOMAIN_SIZE = 0x400000; // 2^22
     uint256 internal constant Q_MOD = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
     uint256 internal constant R_MOD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
@@ -284,56 +284,56 @@ contract ZKsyncOSVerifierPlonk is IVerifier {
     function _loadVerificationKey() internal pure virtual {
         assembly {
             // gate setup commitments
-            mstore(VK_GATE_SETUP_0_X_SLOT, 0x2f6671823fdf88a70de36461e1dc485719758226dbbd90af6024592caeb11731)
-            mstore(VK_GATE_SETUP_0_Y_SLOT, 0x185ee4802927844f3cb554123c233d145de987aa91528378aa50664298ede1b3)
-            mstore(VK_GATE_SETUP_1_X_SLOT, 0x007ee3e201d1c4d16b471295c578b41c677084bc3e08518fef96ab6ae79660b5)
-            mstore(VK_GATE_SETUP_1_Y_SLOT, 0x2a7529f679bed985fd53b17880b78df3392eb76e6b1d955ed68805e76371157e)
-            mstore(VK_GATE_SETUP_2_X_SLOT, 0x13751bfca2223aa61190767d93544e37fa10d142f35204c7bd2049283ae01cca)
-            mstore(VK_GATE_SETUP_2_Y_SLOT, 0x28d5756b88025bf9cba68f3ea6066e000b97d9c107d8ea08891fabba0cc161a5)
-            mstore(VK_GATE_SETUP_3_X_SLOT, 0x1cf147bb90016fc9f5c81e625f6f48220f758f7f3653160770a6a1fed3235a80)
-            mstore(VK_GATE_SETUP_3_Y_SLOT, 0x27bf40805cc1637c7c16eb097d38ec61871f90e2f9a337849b79d792783d6d25)
-            mstore(VK_GATE_SETUP_4_X_SLOT, 0x1e380eab8ea5afd61185eae7c6b0ef813c7aea92a9b89c15c847102b967f30e1)
-            mstore(VK_GATE_SETUP_4_Y_SLOT, 0x21d68f4de6b8546841755702849941d1614f1f8614b64311a077129e7b9aabae)
-            mstore(VK_GATE_SETUP_5_X_SLOT, 0x146a9430ab2b900a5d0e31e3d8a73c81bdb1dae069cb1c7074a98c07c96473e2)
-            mstore(VK_GATE_SETUP_5_Y_SLOT, 0x13b009a0e81cbc1a2c8c510e47aebdebcce7b3eff65258bbd36198f3fc6af226)
-            mstore(VK_GATE_SETUP_6_X_SLOT, 0x2d11a95d729dd7c12878ede328cff33ac5dd07ed990fb4278969a0486a5c7b66)
-            mstore(VK_GATE_SETUP_6_Y_SLOT, 0x2d0812fb02c2247403fb4fb6e8703eefccbfa7d75badbe79102966a61cd2114d)
-            mstore(VK_GATE_SETUP_7_X_SLOT, 0x064cb9a297eeccc82386e60010b7b94cdcadc756d0e3f2727088a4182805c8d7)
-            mstore(VK_GATE_SETUP_7_Y_SLOT, 0x10ace2e9e05934d768d719bda1cbe8cce0fde5e824e97ad882ad6e1a8d55790a)
+            mstore(VK_GATE_SETUP_0_X_SLOT, 0x057bfb259ec8063135a15a164e95ca1819d77a60b0049ad21628b8d69b8d4cd6)
+            mstore(VK_GATE_SETUP_0_Y_SLOT, 0x2d9fa3fbb547a9606e19c5f6f34983771022ef63a332af64e29091b6a4a0d39f)
+            mstore(VK_GATE_SETUP_1_X_SLOT, 0x049cac7d9f05c338ccbf81205896a2f4e6df6ebe7b3a0c8ae83903e5baeef026)
+            mstore(VK_GATE_SETUP_1_Y_SLOT, 0x01da86b4fe711d577862fbf2afb4f7b39c5f68c9d798443fd11548682f56116d)
+            mstore(VK_GATE_SETUP_2_X_SLOT, 0x132d17cc5bf06854562927fbe58901234e10d0985feebe93ef9b3552f472fad0)
+            mstore(VK_GATE_SETUP_2_Y_SLOT, 0x06a96f616459a3576ce9d813ed3b4ae1806abc0b3a73388d7c36d36b39f7472c)
+            mstore(VK_GATE_SETUP_3_X_SLOT, 0x188f8859fd3305f89b97a19c3f687207de16fa0cf02f106f90ce7bd714168c9c)
+            mstore(VK_GATE_SETUP_3_Y_SLOT, 0x152d8dfdb1966767084208e60486eabe97c6c6f9f210e9504a2383b298ca340d)
+            mstore(VK_GATE_SETUP_4_X_SLOT, 0x27a773a6ff9bd0314f4fe09e434df59cda040d79f753d720c3e69b17e13fe8ef)
+            mstore(VK_GATE_SETUP_4_Y_SLOT, 0x0b2b3669a46d905302f3f6a20fa4a0ea20d677297eac46fe4e5e031a86675b0f)
+            mstore(VK_GATE_SETUP_5_X_SLOT, 0x1de37dc6ff9283227561ed078cf75ecb78f7bb632e3c079eec07ac87104f2085)
+            mstore(VK_GATE_SETUP_5_Y_SLOT, 0x1441202433e83b9389c596b9e5c8742f20bad4c2a5779f6bb4558e161480a001)
+            mstore(VK_GATE_SETUP_6_X_SLOT, 0x04320a14655076677030ee66633f260c3737312ca9de03c6326a989b15fbaf3a)
+            mstore(VK_GATE_SETUP_6_Y_SLOT, 0x05c9c37164c2b40e5f891a2269b011e7deed313117f3e9d9e072d0c3c930d4b7)
+            mstore(VK_GATE_SETUP_7_X_SLOT, 0x25aa5ad69b5172d8c53fb8a7baf28d66ac1c093706054d1d3d5c6baf62ecf6b9)
+            mstore(VK_GATE_SETUP_7_Y_SLOT, 0x272ff2a187eec4d1bc1067abb4aba1a2eb8ae9010fd138c85a48a87a1c9b0340)
 
             // gate selectors commitments
-            mstore(VK_GATE_SELECTORS_0_X_SLOT, 0x261e761b006d0f8a8aba7aa370ac8587afff18457917ebd948d48c9afea820a6)
-            mstore(VK_GATE_SELECTORS_0_Y_SLOT, 0x305bf0277b7273f0a35f00b13642e7202e5d1dea27691f40509069befe4dd199)
-            mstore(VK_GATE_SELECTORS_1_X_SLOT, 0x06fba307271f7de13ddf97a950be4d1b546495037643cfdac8dd5c898e7b0c1c)
-            mstore(VK_GATE_SELECTORS_1_Y_SLOT, 0x2ec3d96b427f265d2609c9c7a6d74ff39bb9a804c11d5dfd405ae40cd63bf3c0)
+            mstore(VK_GATE_SELECTORS_0_X_SLOT, 0x1585cdfd2ed7050b2f33435bda849c4fb80b5d90558b0df986bac2a45c4ec073)
+            mstore(VK_GATE_SELECTORS_0_Y_SLOT, 0x2d33468eef634f5f69b5fefed69ad9a74427979b36938c1d573b6631f606203b)
+            mstore(VK_GATE_SELECTORS_1_X_SLOT, 0x0dfc03950017ad1cf901b991623705511dcdb05a6e34c08a7585e9a383e7d351)
+            mstore(VK_GATE_SELECTORS_1_Y_SLOT, 0x2e0f2c625327495e0f47106bd9aac3603ba8391620d4d0f6a00d1f2f31c6f589)
 
             // permutation commitments
-            mstore(VK_PERMUTATION_0_X_SLOT, 0x0dcc890d8c676a3349533e263628db84ec4ec64f9eb55d21f5f5ceead7d77e6d)
-            mstore(VK_PERMUTATION_0_Y_SLOT, 0x206b05cb1c4a3e506cc265fe0f4142b72aab3b19872b0a02839a68b28cea51b8)
-            mstore(VK_PERMUTATION_1_X_SLOT, 0x2098a6c0d290d9ff780187585709a9491b4b9b35d626d0d907139bd11c45a9b7)
-            mstore(VK_PERMUTATION_1_Y_SLOT, 0x01b431183b871ff83a6f34e09c9d880cd70fa8e7362da74047ce7d8d456f0f4a)
-            mstore(VK_PERMUTATION_2_X_SLOT, 0x1663ea5cb7ba02458ccdf5c99ccec85791f0c31bd9f082e5cf0b5fcfc2ac10e4)
-            mstore(VK_PERMUTATION_2_Y_SLOT, 0x1059cee6eb0edb81d1fbc39fc6d3da8788b28c6ad073b30a3de009d511fdf2ab)
-            mstore(VK_PERMUTATION_3_X_SLOT, 0x1657e1a1f90be730529a4cf7d61ac7b3ce5aacc0875ee08378d235ea13811081)
-            mstore(VK_PERMUTATION_3_Y_SLOT, 0x13c373ed0df39deb0c01c303ba3c85d80af804c930701b886c49ed69430540ac)
+            mstore(VK_PERMUTATION_0_X_SLOT, 0x13d989e3541f61ae54f6495a707d7d76b9b235db34d97fa7aaa04879fc8196e0)
+            mstore(VK_PERMUTATION_0_Y_SLOT, 0x24cfae38c29c156d0bb71e4df26e9d2a704c97275f3549ce097bfc53fe05e045)
+            mstore(VK_PERMUTATION_1_X_SLOT, 0x2d476e925d04fb6ec064dbf2fe4b875fb618d328d64f6f8311cfa3f624461933)
+            mstore(VK_PERMUTATION_1_Y_SLOT, 0x24555802ca39125574da21ee42edc841740de20c20e6299473a3ddf133e9a1d0)
+            mstore(VK_PERMUTATION_2_X_SLOT, 0x280e862442279d6222752b041edc86ccf126e1241bb73dafcd6f882b5e7e8f33)
+            mstore(VK_PERMUTATION_2_Y_SLOT, 0x123f32ef5c997e73d608daf89c84ada0bd3940c5b9d6b5e435ed032a5f4d9467)
+            mstore(VK_PERMUTATION_3_X_SLOT, 0x04c7833b94fc98fbb39936fdc8ac0a7f830c1c1a96ce1457097401b90f2794aa)
+            mstore(VK_PERMUTATION_3_Y_SLOT, 0x064bbcc3937cf48a28d9c59b7343d1b33a322bfa71543225f48980c21da5569f)
 
             // lookup tables commitments
-            mstore(VK_LOOKUP_TABLE_0_X_SLOT, 0x00178a24e8f76b899e260cd152e5b0db9a7c0b04da189aa40f5513a26fd3159a)
-            mstore(VK_LOOKUP_TABLE_0_Y_SLOT, 0x0ed6fa646507ee533fa69f59eaf946b7074a998ee9b77bceb6873d78d068a75c)
-            mstore(VK_LOOKUP_TABLE_1_X_SLOT, 0x29bc0a1ab4ed840a4fc314533f747362fb5040527d42d957699aa5d7f7b9f2fe)
-            mstore(VK_LOOKUP_TABLE_1_Y_SLOT, 0x23de4f9e854cdc4a191685b8b189c20b21ad608bdceb78b975a8650dd55f5266)
-            mstore(VK_LOOKUP_TABLE_2_X_SLOT, 0x1b3b3e4afa6d47198f13f46e277967f734373d20eae30e8cc827c871291483fb)
-            mstore(VK_LOOKUP_TABLE_2_Y_SLOT, 0x0a8a5c8d6b18bfe41f3882070d9bb72d160a336129262c7e73805049e9f00baf)
-            mstore(VK_LOOKUP_TABLE_3_X_SLOT, 0x176657e1db8cc158b2d4331b9486bab99264dcde05431edd05b98480d6975981)
-            mstore(VK_LOOKUP_TABLE_3_Y_SLOT, 0x2869391fcc9fe7670957e88c2f2dbf6b37c049257c96a6e45007629277bfb262)
+            mstore(VK_LOOKUP_TABLE_0_X_SLOT, 0x1aef67c0150cb895d2018da21cc02e82ce471d3455808033ad0a4f12e403cd05)
+            mstore(VK_LOOKUP_TABLE_0_Y_SLOT, 0x145ec791ac65db11dd06f2828df514fe67e48029096585775b1cff99d525a987)
+            mstore(VK_LOOKUP_TABLE_1_X_SLOT, 0x12f0d87618305578552b4397967c3a1c4b23321ed4015192a7720f342bcb5830)
+            mstore(VK_LOOKUP_TABLE_1_Y_SLOT, 0x2006d39bf804aaf99614f9092fe9afaa93af5f739ab8c49b6e694de69bc9e201)
+            mstore(VK_LOOKUP_TABLE_2_X_SLOT, 0x2e5c25060cdb512482194ab55b76be39471baa63c833c2d554e6db7fca46fd47)
+            mstore(VK_LOOKUP_TABLE_2_Y_SLOT, 0x1e82115e13405b5629297729fb478daa8a37bfc24c242a1844c29e42ea08155f)
+            mstore(VK_LOOKUP_TABLE_3_X_SLOT, 0x096687923d8ea12f617e082471910272c6c7901d97acaa44a51470d3f16b6a3d)
+            mstore(VK_LOOKUP_TABLE_3_Y_SLOT, 0x1b14a90e3cfe949361d157fcc876b459a97900d535f36794d4dbeab55a756377)
 
             // lookup selector commitment
-            mstore(VK_LOOKUP_SELECTOR_X_SLOT, 0x13f2957aefe2ddf4cd3c7a2ad3ed42f773b983383ba3ec78f44aedbd617bd294)
-            mstore(VK_LOOKUP_SELECTOR_Y_SLOT, 0x1e1ea0238e8b69ba5dd6583be48e309b299ddf61e06e9035794d0c1210beea1c)
+            mstore(VK_LOOKUP_SELECTOR_X_SLOT, 0x25b4f1106a526797a4bcacdbf1b08d520f7f6b66411f5efd865c5801f3726399)
+            mstore(VK_LOOKUP_SELECTOR_Y_SLOT, 0x221689e57b049fa08b38cad43a11c7c3356da7c50388992ad84e16be914a31ae)
 
             // table type commitment
-            mstore(VK_LOOKUP_TABLE_TYPE_X_SLOT, 0x2ae687e94afcc73e98f995b3b4de4044352af912d4d2567ca8a29eaf1aa27b3a)
-            mstore(VK_LOOKUP_TABLE_TYPE_Y_SLOT, 0x1383f8867c2bb09a6d825ae2e244f08389b16a2ea843691103b2baf31f872ff9)
+            mstore(VK_LOOKUP_TABLE_TYPE_X_SLOT, 0x295f0e103120a12b3af8b42c3bdde02cd3400992a6c686e6ec5058cbc0de5286)
+            mstore(VK_LOOKUP_TABLE_TYPE_Y_SLOT, 0x032f063984f6d0d903256a6ab366e60763dc489712461f98882e931508f8c6a6)
 
             // flag for using recursive part
             mstore(VK_RECURSIVE_FLAG_SLOT, 0)
