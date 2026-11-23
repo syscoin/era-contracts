@@ -27,6 +27,8 @@ contract PermissionlessValidatorExecutorIntegrationTest is ExecutorTest {
     }
 
     function setUp() public {
+        vm.prank(address(dummyBridgehub));
+        messageRoot.addNewChain(l2ChainId, 0);
         vm.prank(owner);
         admin.makePermanentRollup();
         firstPriorityHash = _enqueuePriorityRequest();
@@ -99,6 +101,9 @@ contract PermissionlessValidatorExecutorIntegrationTest is ExecutorTest {
         assertEq(getters.getTotalBatchesVerified(), 2);
         assertEq(getters.getTotalBatchesExecuted(), 2);
         assertEq(getters.getFirstUnprocessedPriorityTx(), 2);
+        assertEq(messageRoot.currentChainBatchNumber(l2ChainId), 2);
+        assertEq(messageRoot.chainBatchRoots(l2ChainId, 1), getters.l2LogsRootHash(1));
+        assertEq(messageRoot.chainBatchRoots(l2ChainId, 2), getters.l2LogsRootHash(2));
         assertNotEq(getters.storedBatchHash(1), getters.storedBatchHash(2));
     }
 
@@ -170,6 +175,7 @@ contract PermissionlessValidatorExecutorIntegrationTest is ExecutorTest {
         assertEq(getters.getTotalBatchesExecuted(), 0);
         assertEq(getters.getFirstUnprocessedPriorityTx(), 0);
         assertEq(getters.getPriorityQueueSize(), 2);
+        assertEq(messageRoot.currentChainBatchNumber(l2ChainId), 0);
         assertEq(getters.storedBatchHash(1), bytes32(0));
         assertEq(getters.storedBatchHash(2), bytes32(0));
     }
@@ -197,6 +203,7 @@ contract PermissionlessValidatorExecutorIntegrationTest is ExecutorTest {
             commit[0].firstBlockNumber = uint64(2 * i + 1);
             commit[0].lastBlockNumber = uint64(2 * i + 2);
             commit[0].newStateCommitment = keccak256(abi.encode(previous.batchHash, item));
+            commit[0].l2LogsTreeRoot = keccak256(abi.encode("priority batch logs", item));
             if (i == 1) commit[0].numberOfLayer2Txs = _secondL2TxCount;
             _mockDAValidator(commit[0].batchNumber);
             (, , commits[i]) = Utils.encodeCommitBatchesDataZKsyncOS(previous, commit);
