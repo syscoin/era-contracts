@@ -1791,13 +1791,13 @@
   },
   {
     "contractName": "l1-contracts/PermissionlessValidator",
-    "zkBytecodeHash": "0x010000b94c2091cc82dc3a2dc82759131b3af4a2140d561c2e74ed93ad748cbc",
+    "zkBytecodeHash": "0x0100011751934abf209eeabfb0437f5cbca4104122c1a92c5ecc01954060fa6d",
     "zkBytecodePath": "/l1-contracts/zkout/PermissionlessValidator.sol/PermissionlessValidator.json",
-    "evmBytecodeHash": "0x5908dda30dfc29ac7c6faa88b9fd16989f46063278f0fafdd6cb83e1e2ba78be",
+    "evmBytecodeHash": "0x2c394b28ef4200190a7992c1dec8d4fd2db49de2c148df04813199d10f5c85f4",
     "evmBytecodePath": "/l1-contracts/out/PermissionlessValidator.sol/PermissionlessValidator.json",
-    "evmDeployedBytecodeHash": "0x69493d1a3d8b2781920b1ed41d2cd78c770fdceda1443e936186a5dea8eab75c",
-    "evmDeployedBytecodeBlakeHash": "0x2b0bbdaf7fd9bceb6dc0ad0f738de44911bf20e5633236bc10ecf643643090ef",
-    "evmDeployedBytecodeLength": 1683
+    "evmDeployedBytecodeHash": "0x4f8794f8d2cc92d74bddbb9950e6f3345fe4988ff82ba61a04b61fc3f6c459b8",
+    "evmDeployedBytecodeBlakeHash": "0x56867ba81d4dc6bea38fba5f8f1707895f448be211a98c2b3806e94dbea0c3a6",
+    "evmDeployedBytecodeLength": 3213
   },
   {
     "contractName": "l1-contracts/PriorityQueue",
