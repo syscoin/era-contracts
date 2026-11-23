@@ -59,4 +59,23 @@ contract PermissionlessValidator is ReentrancyGuard, Initializable {
             _executeData
         );
     }
+
+    /// @notice Settle two consecutive priority batches with one native aggregate proof.
+    /// @dev The native committer accepts one batch per call. The executor checks the pair's
+    /// stored commitments and processes each batch's priority operations in order.
+    function settleBatchPairSharedBridge(
+        address _chainAddress,
+        uint256 _firstBatch,
+        bytes[2] calldata _commitData,
+        bytes calldata _proveData,
+        bytes calldata _executeData
+    ) external nonReentrant {
+        uint256 secondBatch = _firstBatch + 1;
+        ICommitter committer = ICommitter(_chainAddress);
+        IExecutor executor = IExecutor(_chainAddress);
+        committer.commitBatchesSharedBridge(_chainAddress, _firstBatch, _firstBatch, _commitData[0]);
+        committer.commitBatchesSharedBridge(_chainAddress, secondBatch, secondBatch, _commitData[1]);
+        executor.proveBatchesSharedBridge(_chainAddress, _firstBatch, secondBatch, _proveData);
+        executor.executeBatchesSharedBridge(_chainAddress, _firstBatch, secondBatch, _executeData);
+    }
 }

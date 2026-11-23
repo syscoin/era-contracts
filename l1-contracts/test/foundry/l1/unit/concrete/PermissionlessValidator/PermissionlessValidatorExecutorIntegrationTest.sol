@@ -3,6 +3,8 @@ pragma solidity 0.8.28;
 
 import {ExecutorTest} from "../BatchProcessing/_Executor_Shared.t.sol";
 import {Utils} from "../Utils/Utils.sol";
+import {InvalidTxCountInPriorityMode} from "contracts/common/L1ContractErrors.sol";
+import {MismatchNumberOfLayer1Txs} from "contracts/state-transition/L1StateTransitionErrors.sol";
 import {IExecutor} from "contracts/state-transition/chain-interfaces/IExecutor.sol";
 import {CommitBatchInfoZKsyncOS} from "contracts/state-transition/chain-interfaces/ICommitter.sol";
 import {PriorityOpsBatchInfo} from "contracts/state-transition/libraries/PriorityTree.sol";
@@ -13,6 +15,8 @@ import {PRIORITY_EXPIRATION, REQUIRED_L2_GAS_PRICE_PER_PUBDATA} from "contracts/
 import {L2TransactionRequestDirect} from "contracts/core/bridgehub/IBridgehubBase.sol";
 
 contract PermissionlessValidatorExecutorIntegrationTest is ExecutorTest {
+    bytes32 private firstPriorityHash;
+
     function isZKsyncOS() internal pure override returns (bool) {
         return true;
     }
@@ -24,12 +28,20 @@ contract PermissionlessValidatorExecutorIntegrationTest is ExecutorTest {
     function _activatePriorityMode() internal {
         vm.prank(owner);
         admin.makePermanentRollup();
+        firstPriorityHash = _enqueuePriorityRequest();
+        vm.prank(owner);
+        admin.permanentlyAllowPriorityMode();
+        vm.warp(block.timestamp + PRIORITY_EXPIRATION + 1);
+        admin.activatePriorityMode();
+    }
+
+    function _enqueuePriorityRequest() private returns (bytes32) {
         address prioritySender = makeAddr("prioritySender");
         uint256 l2GasLimit = 1_000_000;
         uint256 baseCost = mailbox.l2TransactionBaseCost(10_000_000, l2GasLimit, REQUIRED_L2_GAS_PRICE_PER_PUBDATA);
         vm.deal(prioritySender, baseCost);
         vm.prank(prioritySender);
-        dummyBridgehub.requestL2TransactionDirect{value: baseCost}(
+        return dummyBridgehub.requestL2TransactionDirect{value: baseCost}(
             L2TransactionRequestDirect({
                 chainId: l2ChainId,
                 mintValue: baseCost,
@@ -42,10 +54,6 @@ contract PermissionlessValidatorExecutorIntegrationTest is ExecutorTest {
                 refundRecipient: prioritySender
             })
         );
-        vm.prank(owner);
-        admin.permanentlyAllowPriorityMode();
-        vm.warp(block.timestamp + PRIORITY_EXPIRATION + 1);
-        admin.activatePriorityMode();
     }
 
     function test_settleBatchesSharedBridge_withExecutor() public {
@@ -74,6 +82,75 @@ contract PermissionlessValidatorExecutorIntegrationTest is ExecutorTest {
         assertEq(getters.getTotalBatchesVerified(), 1);
         assertEq(getters.getTotalBatchesExecuted(), 1);
         assertEq(getters.l2LogsRootHash(1), commitInfo.l2LogsTreeRoot);
+    }
+
+    function test_settleBatchPairSharedBridge_processesBothPriorityRequests() public {
+        (bytes[2] memory commits, bytes memory prove, bytes memory execute) = _pairData(0, true);
+        permissionlessValidator.settleBatchPairSharedBridge(address(executor), 1, commits, prove, execute);
+
+        assertEq(getters.getTotalBatchesCommitted(), 2);
+        assertEq(getters.getTotalBatchesVerified(), 2);
+        assertEq(getters.getTotalBatchesExecuted(), 2);
+        assertEq(getters.getFirstUnprocessedPriorityTx(), 2);
+        assertNotEq(getters.storedBatchHash(1), getters.storedBatchHash(2));
+    }
+
+    function test_settleBatchPairSharedBridge_ineligibleSecondBatchRollsBackFirstCommit() public {
+        (bytes[2] memory commits, bytes memory prove, bytes memory execute) = _pairData(1, true);
+        vm.expectRevert(abi.encodeWithSelector(InvalidTxCountInPriorityMode.selector, 1, 1));
+        permissionlessValidator.settleBatchPairSharedBridge(address(executor), 1, commits, prove, execute);
+        _assertPairRolledBack();
+    }
+
+    function test_settleBatchPairSharedBridge_failedExecutionRollsBackBothCommitsAndProof() public {
+        (bytes[2] memory commits, bytes memory prove, bytes memory execute) = _pairData(0, false);
+        vm.expectRevert(abi.encodeWithSelector(MismatchNumberOfLayer1Txs.selector, 1, 0));
+        permissionlessValidator.settleBatchPairSharedBridge(address(executor), 1, commits, prove, execute);
+        _assertPairRolledBack();
+    }
+
+    function _assertPairRolledBack() private view {
+        assertEq(getters.getTotalBatchesCommitted(), 0);
+        assertEq(getters.getTotalBatchesVerified(), 0);
+        assertEq(getters.getTotalBatchesExecuted(), 0);
+        assertEq(getters.getFirstUnprocessedPriorityTx(), 0);
+        assertEq(getters.getPriorityQueueSize(), 2);
+        assertEq(getters.storedBatchHash(1), bytes32(0));
+        assertEq(getters.storedBatchHash(2), bytes32(0));
+    }
+
+    function _pairData(
+        uint256 _secondL2TxCount,
+        bool _includeSecondExecutionItem
+    ) private returns (bytes[2] memory commits, bytes memory prove, bytes memory execute) {
+        bytes32 secondPriorityHash = _enqueuePriorityRequest();
+        PriorityOpsBatchInfo[] memory ops = new PriorityOpsBatchInfo[](2);
+        IExecutor.StoredBatchInfo[] memory batches = new IExecutor.StoredBatchInfo[](2);
+        IExecutor.StoredBatchInfo memory previous = genesisStoredBatchInfo;
+        for (uint256 i = 0; i < 2; ++i) {
+            bytes32 item = i == 0 ? firstPriorityHash : secondPriorityHash;
+            ops[i].itemHashes = new bytes32[](1);
+            ops[i].itemHashes[0] = item;
+            ops[i].leftPath = new bytes32[](1);
+            ops[i].rightPath = new bytes32[](1);
+            if (i == 0) ops[i].rightPath[0] = secondPriorityHash;
+            else ops[i].leftPath[0] = firstPriorityHash;
+
+            CommitBatchInfoZKsyncOS[] memory commit = new CommitBatchInfoZKsyncOS[](1);
+            commit[0] = _buildCommitInfoZKsyncOS(_rollingHash(ops[i].itemHashes), 1);
+            commit[0].batchNumber = uint64(i + 1);
+            commit[0].firstBlockNumber = uint64(2 * i + 1);
+            commit[0].lastBlockNumber = uint64(2 * i + 2);
+            commit[0].newStateCommitment = keccak256(abi.encode(previous.batchHash, item));
+            if (i == 1) commit[0].numberOfLayer2Txs = _secondL2TxCount;
+            _mockDAValidator(commit[0].batchNumber);
+            (, , commits[i]) = Utils.encodeCommitBatchesDataZKsyncOS(previous, commit);
+            batches[i] = _buildStoredBatchInfoZKsyncOS(commit[0]);
+            previous = batches[i];
+        }
+        (, , prove) = Utils.encodeProveBatchesData(genesisStoredBatchInfo, batches, proofInput);
+        if (!_includeSecondExecutionItem) ops[1].itemHashes = new bytes32[](0);
+        (, , execute) = Utils.encodeExecuteBatchesDataZeroLogs(batches, ops);
     }
 
     function _prepareCommitInfo(
