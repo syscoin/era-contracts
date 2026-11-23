@@ -3,7 +3,11 @@ pragma solidity 0.8.28;
 
 import {ExecutorTest} from "../BatchProcessing/_Executor_Shared.t.sol";
 import {Utils} from "../Utils/Utils.sol";
-import {InvalidTxCountInPriorityMode} from "contracts/common/L1ContractErrors.sol";
+import {
+    IncorrectBatchBounds,
+    InvalidTxCountInPriorityMode,
+    UnsupportedCommitBatchEncoding
+} from "contracts/common/L1ContractErrors.sol";
 import {MismatchNumberOfLayer1Txs} from "contracts/state-transition/L1StateTransitionErrors.sol";
 import {IExecutor} from "contracts/state-transition/chain-interfaces/IExecutor.sol";
 import {CommitBatchInfoZKsyncOS} from "contracts/state-transition/chain-interfaces/ICommitter.sol";
@@ -84,9 +88,11 @@ contract PermissionlessValidatorExecutorIntegrationTest is ExecutorTest {
         assertEq(getters.l2LogsRootHash(1), commitInfo.l2LogsTreeRoot);
     }
 
-    function test_settleBatchPairSharedBridge_processesBothPriorityRequests() public {
+    function test_settleBatchesSharedBridge_pair_processesBothPriorityRequests() public {
         (bytes[2] memory commits, bytes memory prove, bytes memory execute) = _pairData(0, true);
-        permissionlessValidator.settleBatchPairSharedBridge(address(executor), 1, commits, prove, execute);
+        permissionlessValidator.settleBatchesSharedBridge(
+            address(executor), 1, 2, _pairEnvelope(commits), prove, execute
+        );
 
         assertEq(getters.getTotalBatchesCommitted(), 2);
         assertEq(getters.getTotalBatchesVerified(), 2);
@@ -95,18 +101,52 @@ contract PermissionlessValidatorExecutorIntegrationTest is ExecutorTest {
         assertNotEq(getters.storedBatchHash(1), getters.storedBatchHash(2));
     }
 
-    function test_settleBatchPairSharedBridge_ineligibleSecondBatchRollsBackFirstCommit() public {
+    function test_settleBatchesSharedBridge_pair_ineligibleSecondBatchRollsBackFirstCommit() public {
         (bytes[2] memory commits, bytes memory prove, bytes memory execute) = _pairData(1, true);
         vm.expectRevert(abi.encodeWithSelector(InvalidTxCountInPriorityMode.selector, 1, 1));
-        permissionlessValidator.settleBatchPairSharedBridge(address(executor), 1, commits, prove, execute);
+        permissionlessValidator.settleBatchesSharedBridge(
+            address(executor), 1, 2, _pairEnvelope(commits), prove, execute
+        );
         _assertPairRolledBack();
     }
 
-    function test_settleBatchPairSharedBridge_failedExecutionRollsBackBothCommitsAndProof() public {
+    function test_settleBatchesSharedBridge_pair_failedExecutionRollsBackBothCommitsAndProof() public {
         (bytes[2] memory commits, bytes memory prove, bytes memory execute) = _pairData(0, false);
         vm.expectRevert(abi.encodeWithSelector(MismatchNumberOfLayer1Txs.selector, 1, 0));
-        permissionlessValidator.settleBatchPairSharedBridge(address(executor), 1, commits, prove, execute);
+        permissionlessValidator.settleBatchesSharedBridge(
+            address(executor), 1, 2, _pairEnvelope(commits), prove, execute
+        );
         _assertPairRolledBack();
+    }
+
+    function test_settleBatchesSharedBridge_untaggedCommitKeepsNativeRangeChecks() public {
+        (bytes[2] memory commits, bytes memory prove, bytes memory execute) = _pairData(0, true);
+        vm.expectRevert(abi.encodeWithSelector(IncorrectBatchBounds.selector, 1, 2, 1, 1));
+        permissionlessValidator.settleBatchesSharedBridge(address(executor), 1, 2, commits[0], prove, execute);
+        _assertPairRolledBack();
+    }
+
+    function test_settleBatchesSharedBridge_pairEnvelopeRequiresExactlyTwoBatches() public {
+        (bytes[2] memory commits, bytes memory prove, bytes memory execute) = _pairData(0, true);
+        vm.expectRevert(abi.encodeWithSelector(UnsupportedCommitBatchEncoding.selector, 0x53));
+        permissionlessValidator.settleBatchesSharedBridge(
+            address(executor), 1, 3, _pairEnvelope(commits), prove, execute
+        );
+        _assertPairRolledBack();
+    }
+
+    function test_settleBatchesSharedBridge_pairEnvelopeRequiresNativeZKsyncOSCommits() public {
+        (bytes[2] memory commits, bytes memory prove, bytes memory execute) = _pairData(0, true);
+        commits[1][0] = 0x01;
+        vm.expectRevert(abi.encodeWithSelector(UnsupportedCommitBatchEncoding.selector, 0x53));
+        permissionlessValidator.settleBatchesSharedBridge(
+            address(executor), 1, 2, _pairEnvelope(commits), prove, execute
+        );
+        _assertPairRolledBack();
+    }
+
+    function _pairEnvelope(bytes[2] memory _commits) private pure returns (bytes memory) {
+        return bytes.concat(hex"53595001", abi.encode(_commits));
     }
 
     function _assertPairRolledBack() private view {
